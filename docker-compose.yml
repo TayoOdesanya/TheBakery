@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: restaurant_db
+    environment:
+      POSTGRES_DB: restaurant_orders
+      POSTGRES_USER: restaurant_user
+      POSTGRES_PASSWORD: restaurant_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - restaurant_network
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: restaurant_backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://restaurant_user:restaurant_pass@postgres:5432/restaurant_orders
+      - JWT_SECRET=your_super_secret_jwt_key_change_in_production
+      - STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
+      - STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+      - FRONTEND_URL=http://localhost:5173
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - restaurant_network
+    command: npm run dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: restaurant_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+      - VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - restaurant_network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  restaurant_network:
+    driver: bridge
