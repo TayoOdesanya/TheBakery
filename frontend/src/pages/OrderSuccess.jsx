@@ -1,22 +1,21 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle, Clock, Users } from 'lucide-react'
 import axios from 'axios'
 
 const OrderSuccess = () => {
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   const navigate = useNavigate()
-  const [order, setOrder] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [order, setOrder] = useState(location.state?.order || null)
+  const [loading, setLoading] = useState(false)
   const sessionId = searchParams.get('session_id')
 
   useEffect(() => {
-    if (sessionId) {
+    if (!order && sessionId) {
       verifyPayment()
-    } else {
-      setLoading(false)
     }
-  }, [sessionId])
+  }, [sessionId, order])
 
   const verifyPayment = async () => {
     try {
@@ -42,7 +41,7 @@ const OrderSuccess = () => {
     )
   }
 
-  if (!sessionId) {
+  if (!order && !sessionId) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 text-center">
         <p className="text-gray-600 mb-6">No order information found</p>

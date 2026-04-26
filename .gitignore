@@ -1,0 +1,11 @@
+node_modules/
+.env
+.DS_Store
+
+# Build output
+dist/
+frontend/dist/
+
+# Old local SQLite database file, if present from previous versions
+backend/prisma/dev.db
+backend/prisma/dev.db-journal

@@ -1,19 +1,17 @@
 {
   "name": "restaurant-ordering-backend",
   "version": "1.0.0",
-  "description": "Restaurant ordering system backend with Stripe payments",
+  "description": "Basic restaurant ordering system with Express and PostgreSQL",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:push": "npx prisma db push",
-    "db:seed": "node src/scripts/seed.js",
-    "db:migrate": "npx prisma migrate dev",
-    "db:studio": "npx prisma studio"
+    "setup": "npm install && npm run db:init && npm run db:seed",
+    "db:init": "node src/scripts/init-db.js",
+    "db:seed": "node src/scripts/seed.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -21,11 +19,11 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "socket.io": "^4.8.1",
-    "stripe": "^14.10.0"
+    "pg": "^8.13.1",
+    "restaurant-ordering-backend": "file:",
+    "stripe": "^14.25.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
-    "prisma": "^5.7.1"
+    "nodemon": "^3.0.2"
   }
 }
