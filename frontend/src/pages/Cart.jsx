@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import { Trash2, Plus, Minus, CreditCard } from 'lucide-react'
-import { loadStripe } from '@stripe/stripe-js'
-import axios from 'axios'
 import { useCart } from '../context/CartContext'
-import LoadingSpinner from '../components/LoadingSpinner'
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
 const Cart = () => {
   const { 
@@ -16,11 +11,9 @@ const Cart = () => {
     removeItem, 
     getTotal, 
     clearCart,
-    isEmpty,
-    getCartForCheckout
+    isEmpty
   } = useCart()
   
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const handleTableNumberChange = (e) => {
@@ -41,46 +34,8 @@ const Cart = () => {
       return
     }
 
-    try {
-      setLoading(true)
-      setError(null)
-
-      // Check availability before checkout
-      const availabilityResponse = await axios.post('/menu/check-availability', {
-        items: getCartForCheckout()
-      })
-
-      if (!availabilityResponse.data.allAvailable) {
-        const unavailableItems = availabilityResponse.data.items
-          .filter(item => !item.available)
-          .map(item => `Item ${item.menuItemId}: ${item.reason}`)
-          .join(', ')
-        
-        setError(`Some items are no longer available: ${unavailableItems}`)
-        return
-      }
-
-      // Create Stripe checkout session
-      const response = await axios.post('/stripe/create-checkout-session', {
-        items: getCartForCheckout(),
-        tableNumber: parseInt(tableNumber)
-      })
-
-      const stripe = await stripePromise
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId: response.data.sessionId
-      })
-
-      if (stripeError) {
-        setError(stripeError.message)
-      }
-
-    } catch (error) {
-      console.error('Checkout error:', error)
-      setError(error.response?.data?.error || 'Checkout failed. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+    setError(null)
+    window.location.href = '/checkout'
   }
 
   if (isEmpty) {
@@ -186,17 +141,11 @@ const Cart = () => {
 
         <button
           onClick={handleCheckout}
-          disabled={loading || !tableNumber || parseInt(tableNumber) <= 0}
+          disabled={!tableNumber || parseInt(tableNumber) <= 0}
           className="w-full btn-primary flex items-center justify-center space-x-2 py-3"
         >
-          {loading ? (
-            <LoadingSpinner size="sm" />
-          ) : (
-            <>
-              <CreditCard className="h-5 w-5" />
-              <span>Proceed to Payment</span>
-            </>
-          )}
+          <CreditCard className="h-5 w-5" />
+          <span>Proceed to Checkout</span>
         </button>
       </div>
 

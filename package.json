@@ -1,0 +1,11 @@
+{
+  "name": "the-bakery",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix backend run setup && npm --prefix frontend install",
+    "start": "npm --prefix backend start",
+    "dev": "npm --prefix backend run dev",
+    "start:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build"
+  }
+}

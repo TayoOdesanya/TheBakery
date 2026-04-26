@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>The Bakery</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">The Bakery</div>
+      <nav class="nav">
+        <a href="/">Menu</a>
+        <a href="/kitchen.html">Kitchen</a>
+        <a href="/admin.html">Admin</a>
+      </nav>
+    </header>
+
+    <main class="page grid">
+      <section class="stack">
+        <div class="row">
+          <h1>Menu</h1>
+          <select id="categoryFilter" aria-label="Filter by category">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <div id="menu" class="menu-grid"></div>
+      </section>
+
+      <aside class="panel stack">
+        <h2>Cart</h2>
+        <div id="cart"></div>
+        <p class="muted">Total includes the configured Stripe service fee.</p>
+        <strong class="row"><span>Total</span><span id="total">£0.00</span></strong>
+
+        <label>Table number
+          <input id="tableNumber" type="number" min="1" required>
+        </label>
+        <label>Name
+          <input id="customerName" type="text" autocomplete="name">
+        </label>
+        <label>Phone
+          <input id="customerPhone" type="tel" autocomplete="tel">
+        </label>
+        <label>Special instructions
+          <textarea id="specialInstructions" rows="3"></textarea>
+        </label>
+        <button id="placeOrder">Complete Purchase</button>
+        <div id="message" class="message"></div>
+      </aside>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,12 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { loadStripe } from '@stripe/stripe-js'
 import axios from 'axios'
 import { ShoppingCart, CreditCard, User, Phone, AlertCircle } from 'lucide-react'
 import { useCart } from '../context/CartContext'
-
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
 const Checkout = () => {
   const navigate = useNavigate()
@@ -43,29 +39,35 @@ const Checkout = () => {
     setError(null)
 
     try {
-      // Create checkout session with special instructions
-      const response = await axios.post('http://localhost:3001/api/stripe/create-checkout-session', {
-        items: items.map(item => ({
+      const orderItems = items.map(item => ({
           menuItemId: item.id,
-          quantity: item.quantity,
-          unitPrice: parseFloat(item.price)
-        })),
+          quantity: item.quantity
+        }))
+
+      const orderResponse = await axios.post('http://localhost:3001/api/orders', {
+        items: orderItems,
         tableNumber: parseInt(tableNumber),
         customerName: customerInfo.name,
         customerPhone: customerInfo.phone,
         specialInstructions: specialInstructions.trim() || null
       })
 
-      const stripe = await stripePromise
-      
-      // Redirect to Stripe Checkout
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId: response.data.sessionId
+      const createdOrder = orderResponse.data?.order
+      if (!createdOrder?.id) {
+        throw new Error('Order creation failed')
+      }
+
+      const completeResponse = await axios.post(`http://localhost:3001/api/orders/${createdOrder.id}/complete`, {
+        items: orderItems,
+        paymentMethod: 'card'
       })
 
-      if (stripeError) {
-        setError(stripeError.message)
-      }
+      clearCart()
+      navigate('/order-success', {
+        state: {
+          order: completeResponse.data.order
+        }
+      })
     } catch (err) {
       console.error('Checkout error:', err)
       setError(err.response?.data?.error || 'Failed to process checkout')
@@ -197,7 +199,7 @@ const Checkout = () => {
                 <CreditCard className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
                 <div className="text-sm text-gray-700">
                   <p className="font-medium text-blue-900 mb-1">Secure Payment</p>
-                  <p>You'll be redirected to Stripe's secure payment page to complete your order.</p>
+                  <p>Your order will be securely completed and sent directly to the kitchen.</p>
                 </div>
               </div>
             </div>
@@ -217,13 +219,13 @@ const Checkout = () => {
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
-                  <span>Proceed to Payment (£{total.toFixed(2)})</span>
+                  <span>Complete Purchase (£{total.toFixed(2)})</span>
                 </>
               )}
             </button>
 
             <p className="text-xs text-gray-500 text-center mt-4">
-              Powered by Stripe • Your payment information is secure
+              Secure checkout • Your order information is protected
             </p>
           </form>
         </div>
