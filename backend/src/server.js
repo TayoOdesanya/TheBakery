@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
+import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
@@ -51,6 +52,32 @@ function requireAuth(req, res, next) {
   } catch {
     res.status(403).json({ error: 'Invalid or expired token' });
   }
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+}
+
+async function generateBuyerId() {
+  const result = await query("select count(*) from bakery_users where role = 'buyer'");
+  const count = parseInt(result.rows[0].count) + 1;
+  return `BKR-${String(count).padStart(4, '0')}`;
+}
+
+function maskContact(email, phone) {
+  if (email) {
+    const [local, domain] = email.split('@');
+    const visible = local[0];
+    const stars = '*'.repeat(Math.max(local.length - 1, 3));
+    return `${visible}${stars}@${domain}`;
+  }
+  if (phone) {
+    return `${'*'.repeat(Math.max(phone.length - 4, 4))}${phone.slice(-4)}`;
+  }
+  return '***';
 }
 
 function toMenuItem(row) {
@@ -253,15 +280,19 @@ app.post('/api/auth/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Account is inactive. Please contact the bakery.' });
+    }
+
     const token = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role },
+      { userId: user.id, username: user.username, role: user.role, buyerId: user.buyer_id || null },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
     res.json({
       token,
-      user: { id: user.id, username: user.username, role: user.role }
+      user: { id: user.id, username: user.username, role: user.role, buyerId: user.buyer_id || null }
     });
   } catch (error) {
     next(error);
@@ -489,6 +520,310 @@ app.get('/api/admin/dashboard', requireAuth, async (req, res, next) => {
       todaysRevenue: result.rows[0].todays_revenue,
       activeOrders: result.rows[0].active_orders
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+async function createOneInvite(email, phone, createdBy) {
+  const normEmail = email ? email.toLowerCase() : null;
+  if (!normEmail && !phone) throw Object.assign(new Error('Email or phone required'), { status: 400 });
+
+  if (normEmail) {
+    const u = await query("select id from bakery_users where email = $1", [normEmail]);
+    if (u.rows.length) throw Object.assign(new Error('Email already registered'), { status: 409 });
+    const a = await query("select id from bakery_invite_tokens where email = $1 and used_at is null and expires_at > now()", [normEmail]);
+    if (a.rows.length) throw Object.assign(new Error('Active invite already exists for this email'), { status: 409 });
+  }
+  if (phone) {
+    const u = await query("select id from bakery_users where phone = $1", [phone]);
+    if (u.rows.length) throw Object.assign(new Error('Phone number already registered'), { status: 409 });
+    const a = await query("select id from bakery_invite_tokens where phone = $1 and email is null and used_at is null and expires_at > now()", [phone]);
+    if (a.rows.length) throw Object.assign(new Error('Active invite already exists for this phone'), { status: 409 });
+  }
+
+  const token = randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const result = await query(`
+    insert into bakery_invite_tokens (token, email, phone, created_by, expires_at)
+    values ($1, $2, $3, $4, $5)
+    returning id, token, email, phone, expires_at, created_at
+  `, [token, normEmail, phone || null, createdBy, expiresAt]);
+
+  const appUrl = process.env.APP_URL || 'http://localhost:5173';
+  return { ...result.rows[0], url: `${appUrl}/register/${result.rows[0].token}` };
+}
+
+app.post('/api/admin/invites', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { email, phone } = req.body;
+    const invite = await createOneInvite(email, phone, req.user.userId);
+    res.status(201).json({ invite });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
+});
+
+app.post('/api/admin/invites/bulk', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { contacts } = req.body;
+    if (!Array.isArray(contacts) || contacts.length === 0) {
+      return res.status(400).json({ error: 'No contacts provided' });
+    }
+    if (contacts.length > 200) {
+      return res.status(400).json({ error: 'Maximum 200 contacts per import' });
+    }
+
+    const results = [];
+    for (const { email, phone } of contacts) {
+      const label = email || phone || 'unknown';
+      try {
+        const invite = await createOneInvite(email, phone, req.user.userId);
+        results.push({ contact: label, status: 'created', url: invite.url });
+      } catch (err) {
+        results.push({ contact: label, status: 'skipped', reason: err.message });
+      }
+    }
+
+    const created = results.filter((r) => r.status === 'created').length;
+    const skipped = results.filter((r) => r.status === 'skipped').length;
+    res.json({ created, skipped, results });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/admin/invites', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const appUrl = process.env.APP_URL || 'http://localhost:5173';
+    const result = await query(`
+      select it.id, it.email, it.phone, it.token, it.used_at, it.expires_at, it.created_at,
+             u.username as used_by_username, u.buyer_id
+      from bakery_invite_tokens it
+      left join bakery_users u on u.email = it.email
+      order by it.created_at desc
+    `);
+    const invites = result.rows.map((row) => ({
+      ...row,
+      url: !row.used_at && new Date(row.expires_at) > new Date()
+        ? `${appUrl}/register/${row.token}`
+        : null,
+      token: undefined,
+    }));
+    res.json({ invites });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/invites/:id', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query(
+      'delete from bakery_invite_tokens where id = $1 and used_at is null returning id',
+      [Number(req.params.id)]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Invite not found or already used' });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/invites/:token', async (req, res, next) => {
+  try {
+    const result = await query(
+      'select * from bakery_invite_tokens where token = $1',
+      [req.params.token]
+    );
+    const invite = result.rows[0];
+    if (!invite) return res.status(404).json({ error: 'Invalid invite link' });
+
+    if (invite.used_at) {
+      await query(
+        'update bakery_invite_tokens set reuse_attempts = reuse_attempts + 1 where id = $1',
+        [invite.id]
+      );
+      console.warn(`[SECURITY] Reuse attempt on invite ${invite.id} for ${invite.email}`);
+      return res.status(410).json({ error: 'This invite has already been used.', reused: true });
+    }
+
+    if (new Date(invite.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'This invite has expired. Please contact the bakery.', expired: true });
+    }
+
+    res.json({ invite: { id: invite.id, email: invite.email, phone: invite.phone, expires_at: invite.expires_at } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/send-invite-otp', async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+
+    const result = await query(
+      'select * from bakery_invite_tokens where token = $1 and used_at is null and expires_at > now()',
+      [token]
+    );
+    const invite = result.rows[0];
+    if (!invite) return res.status(400).json({ error: 'Invalid or expired invite link' });
+
+    await query(
+      'update bakery_otp_codes set used_at = now() where invite_id = $1 and used_at is null',
+      [invite.id]
+    );
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    await query(`
+      insert into bakery_otp_codes (invite_id, code, expires_at)
+      values ($1, $2, now() + interval '10 minutes')
+    `, [invite.id, otpCode]);
+
+    console.log(`[OTP] Invite code for ${invite.email || invite.phone}: ${otpCode}`);
+    res.json({ inviteId: invite.id, contact: maskContact(invite.email, invite.phone) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/verify-register-otp', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { inviteId, code } = req.body;
+    if (!inviteId || !code) return res.status(400).json({ error: 'Invite ID and code required' });
+
+    await client.query('begin');
+
+    const inviteResult = await client.query(
+      'select * from bakery_invite_tokens where id = $1 and used_at is null and expires_at > now() for update',
+      [Number(inviteId)]
+    );
+    const invite = inviteResult.rows[0];
+    if (!invite) {
+      await client.query('rollback');
+      return res.status(400).json({ error: 'Invite is no longer valid' });
+    }
+
+    const otpResult = await client.query(`
+      select * from bakery_otp_codes
+      where invite_id = $1 and used_at is null and expires_at > now()
+      order by created_at desc limit 1
+    `, [Number(inviteId)]);
+    const otp = otpResult.rows[0];
+    if (!otp || otp.code !== String(code)) {
+      await client.query('rollback');
+      return res.status(400).json({ error: 'Invalid or expired code' });
+    }
+
+    const buyerId = await generateBuyerId();
+    const userResult = await client.query(`
+      insert into bakery_users (email, phone, role, buyer_id, is_active, email_verified)
+      values ($1, $2, 'buyer', $3, true, true)
+      returning id, email, phone, role, buyer_id
+    `, [invite.email, invite.phone, buyerId]);
+    const user = userResult.rows[0];
+
+    await client.query('update bakery_otp_codes set used_at = now() where id = $1', [otp.id]);
+    await client.query('update bakery_invite_tokens set used_at = now() where id = $1', [invite.id]);
+    await client.query('commit');
+
+    const jwtToken = jwt.sign(
+      { userId: user.id, email: user.email, phone: user.phone, role: user.role, buyerId: user.buyer_id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    res.json({ token: jwtToken, user: { id: user.id, email: user.email, phone: user.phone, role: user.role, buyerId: user.buyer_id } });
+  } catch (error) {
+    await client.query('rollback');
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/auth/buyer-login', async (req, res, next) => {
+  try {
+    const { email, phone } = req.body;
+    if (!email && !phone) return res.status(400).json({ error: 'Email or phone number required' });
+
+    const result = email
+      ? await query("select * from bakery_users where email = $1 and role = 'buyer'", [email.toLowerCase()])
+      : await query("select * from bakery_users where phone = $1 and role = 'buyer'", [phone]);
+    const user = result.rows[0];
+
+    if (!user) return res.status(404).json({ error: 'No account found. Please check your details or contact the bakery.' });
+    if (!user.is_active) return res.status(403).json({ error: 'Your account has been deactivated. Please contact the bakery.' });
+
+    await query('update bakery_otp_codes set used_at = now() where user_id = $1 and used_at is null', [user.id]);
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    await query(`
+      insert into bakery_otp_codes (user_id, code, expires_at)
+      values ($1, $2, now() + interval '10 minutes')
+    `, [user.id, otpCode]);
+
+    console.log(`[OTP] Login code for ${user.email || user.phone}: ${otpCode}`);
+    res.json({ userId: user.id, contact: maskContact(user.email, user.phone) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/verify-login-otp', async (req, res, next) => {
+  try {
+    const { userId, code } = req.body;
+    if (!userId || !code) return res.status(400).json({ error: 'User ID and code required' });
+
+    const otpResult = await query(`
+      select * from bakery_otp_codes
+      where user_id = $1 and used_at is null and expires_at > now()
+      order by created_at desc limit 1
+    `, [Number(userId)]);
+    const otp = otpResult.rows[0];
+    if (!otp || otp.code !== String(code)) return res.status(400).json({ error: 'Invalid or expired code' });
+
+    await query('update bakery_otp_codes set used_at = now() where id = $1', [otp.id]);
+
+    const userResult = await query('select * from bakery_users where id = $1', [Number(userId)]);
+    const user = userResult.rows[0];
+
+    const jwtToken = jwt.sign(
+      { userId: user.id, email: user.email, phone: user.phone, role: user.role, buyerId: user.buyer_id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    res.json({ token: jwtToken, user: { id: user.id, email: user.email, phone: user.phone, role: user.role, buyerId: user.buyer_id } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query(`
+      select id, username, email, phone, role, buyer_id, is_active, email_verified, created_at
+      from bakery_users
+      order by created_at desc
+    `);
+    res.json({ users: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/admin/users/:id/status', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { isActive } = req.body;
+    if (typeof isActive !== 'boolean') return res.status(400).json({ error: 'isActive must be a boolean' });
+
+    const result = await query(`
+      update bakery_users set is_active = $1 where id = $2 and role != 'admin' returning id, username, is_active
+    `, [isActive, Number(req.params.id)]);
+
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: result.rows[0] });
   } catch (error) {
     next(error);
   }

@@ -1,25 +1,38 @@
 import { Routes, Route } from 'react-router-dom'
 import { CartProvider } from './context/CartContext'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
 import Menu from './pages/Menu'
 import AdminLogin from './pages/AdminLogin'
+import BuyerLoginPage from './pages/BuyerLoginPage'
 import AdminDashboard from './pages/AdminDashboard'
 import KitchenDashboard from './pages/KitchenDashboard'
 import Checkout from './pages/Checkout'
 import OrderSuccess from './pages/OrderSuccess'
+import RegisterPage from './pages/RegisterPage'
 
 function App() {
   return (
-    <CartProvider>
-      <Routes>
-        <Route path="/" element={<Menu />} />
-        <Route path="/menu" element={<Menu />} />
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/kitchen" element={<KitchenDashboard />} />
-        <Route path="/checkout" element={<Checkout />} />
-      <Route path="/order-success" element={<OrderSuccess />} />
-      </Routes>
-    </CartProvider>
+    <AuthProvider>
+      <CartProvider>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<BuyerLoginPage />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/register/:token" element={<RegisterPage />} />
+
+          {/* Buyer routes — require login */}
+          <Route path="/" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
+          <Route path="/menu" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+          <Route path="/order-success" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
+
+          {/* Admin-only routes */}
+          <Route path="/admin/dashboard" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/kitchen" element={<ProtectedRoute adminOnly><KitchenDashboard /></ProtectedRoute>} />
+        </Routes>
+      </CartProvider>
+    </AuthProvider>
   )
 }
 

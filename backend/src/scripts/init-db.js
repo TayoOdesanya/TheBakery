@@ -9,12 +9,25 @@ async function main() {
   await query(`
     create table if not exists bakery_users (
       id serial primary key,
-      username text not null unique,
-      password_hash text not null,
-      role text not null default 'admin',
+      username text unique,
+      email text unique,
+      phone text,
+      password_hash text,
+      role text not null default 'buyer',
+      buyer_id text unique,
+      is_active boolean not null default true,
+      email_verified boolean not null default false,
       created_at timestamptz not null default now()
     )
   `);
+
+  await query('alter table bakery_users add column if not exists email text unique');
+  await query('alter table bakery_users add column if not exists phone text');
+  await query('alter table bakery_users add column if not exists buyer_id text unique');
+  await query('alter table bakery_users add column if not exists is_active boolean not null default true');
+  await query('alter table bakery_users add column if not exists email_verified boolean not null default false');
+  await query('alter table bakery_users alter column username drop not null');
+  await query('alter table bakery_users alter column password_hash drop not null');
 
   await query(`
     create table if not exists bakery_menu_items (
@@ -76,6 +89,38 @@ async function main() {
     )
   `);
 
+  await query(`
+    create table if not exists bakery_invite_tokens (
+      id serial primary key,
+      token text not null unique,
+      email text,
+      phone text,
+      created_by integer references bakery_users(id),
+      used_at timestamptz,
+      expires_at timestamptz not null,
+      reuse_attempts integer not null default 0,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  await query('alter table bakery_invite_tokens add column if not exists reuse_attempts integer not null default 0');
+  await query('alter table bakery_invite_tokens alter column email drop not null');
+
+  await query(`
+    create table if not exists bakery_otp_codes (
+      id serial primary key,
+      user_id integer references bakery_users(id) on delete cascade,
+      invite_id integer references bakery_invite_tokens(id) on delete cascade,
+      code text not null,
+      expires_at timestamptz not null,
+      used_at timestamptz,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  await query('alter table bakery_otp_codes alter column user_id drop not null');
+  await query('alter table bakery_otp_codes add column if not exists invite_id integer references bakery_invite_tokens(id) on delete cascade');
+
   await query('create index if not exists bakery_menu_items_available_idx on bakery_menu_items(is_available)');
   await query('create index if not exists bakery_orders_status_idx on bakery_orders(status)');
   await query('create index if not exists bakery_orders_created_at_idx on bakery_orders(created_at)');
@@ -90,4 +135,3 @@ main()
     process.exitCode = 1;
   })
   .finally(closePool);
-

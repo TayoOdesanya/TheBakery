@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import axios from 'axios'
+import { useAuth } from '../context/AuthContext'
 
 const AdminLogin = () => {
   const [username, setUsername] = useState('')
@@ -9,6 +10,7 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const { login } = useAuth()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -16,24 +18,11 @@ const AdminLogin = () => {
     setLoading(true)
 
     try {
-      // Ensure we're using the correct base URL
-      const apiClient = axios.create({
-        baseURL: 'http://localhost:3001/api'
-      })
-      
-      const response = await apiClient.post('/auth/login', { username, password })
-      
-      // Store token in localStorage
-      localStorage.setItem('adminToken', response.data.token)
-      localStorage.setItem('adminUser', JSON.stringify(response.data.user))
-      
-      // Set axios default header for future requests
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`
-      axios.defaults.baseURL = 'http://localhost:3001/api'
-      
-      navigate('/admin/dashboard')
+      const response = await axios.post('/api/auth/login', { username, password })
+      login(response.data.token, response.data.user)
+      const role = response.data.user.role
+      navigate(role === 'admin' ? '/admin/dashboard' : '/')
     } catch (error) {
-      console.error('Login error:', error)
       setError(error.response?.data?.error || 'Login failed. Please check your connection.')
     } finally {
       setLoading(false)
@@ -107,23 +96,6 @@ const AdminLogin = () => {
             )}
           </button>
 
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Demo Credentials</h3>
-            <div className="text-sm text-gray-600">
-              <div><strong>Username:</strong> admin</div>
-              <div><strong>Password:</strong> admin123</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setUsername('admin')
-                setPassword('admin123')
-              }}
-              className="mt-2 text-xs text-blue-600 hover:text-blue-800"
-            >
-              Fill demo credentials
-            </button>
-          </div>
         </form>
       </div>
     </div>

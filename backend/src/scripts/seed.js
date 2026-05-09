@@ -36,10 +36,11 @@ async function main() {
 
   const passwordHash = await bcrypt.hash('admin123', 10);
   await query(`
-    insert into bakery_users (username, password_hash, role)
-    values ('admin', $1, 'admin')
+    insert into bakery_users (username, email, password_hash, role, is_active, email_verified)
+    values ('admin', 'admin@thebakery.com', $1, 'admin', true, true)
     on conflict (username)
-    do update set password_hash = excluded.password_hash, role = excluded.role
+    do update set password_hash = excluded.password_hash, role = excluded.role,
+                  is_active = true, email_verified = true
   `, [passwordHash]);
 
   const client = await pool.connect();
