@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { ShoppingCart, Truck, Package, AlertCircle, CreditCard, Clock } from 'lucide-react'
+import { ShoppingCart, Truck, Package, AlertCircle, CreditCard, Clock, ChefHat } from 'lucide-react'
 import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
 
@@ -123,6 +123,19 @@ const Checkout = () => {
   }
 
   return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 font-bold text-xl text-amber-600 hover:text-amber-700 transition-colors">
+            <ChefHat className="h-7 w-7" />
+            <span>The Bakery</span>
+          </Link>
+          <Link to="/menu" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            ← Back to menu
+          </Link>
+        </div>
+      </header>
+
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
 
@@ -204,35 +217,46 @@ const Checkout = () => {
                   <div className="space-y-3">
                     {shippingRates.map(tier => {
                       const price = calcTierPrice(tier)
+                      const selected = shippingTier === tier.tier
                       return (
                         <button
                           key={tier.tier}
                           type="button"
                           onClick={() => handleTierSelect(tier)}
                           className={`w-full text-left p-4 border-2 rounded-lg transition-colors ${
-                            shippingTier === tier.tier
-                              ? 'border-primary-500 bg-primary-50'
+                            selected
+                              ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300 bg-white'
                           }`}
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <p className="font-semibold text-gray-900">{tier.displayName}</p>
-                              <p className="text-sm text-gray-600 mt-0.5">{tier.estimatedDays}</p>
-                              <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selected ? 'border-blue-500' : 'border-gray-300'}`}>
+                                  {selected && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                                </div>
+                                <p className="font-semibold text-gray-900">{tier.display_name}</p>
+                              </div>
+                              <p className="text-sm text-gray-600 mt-1 ml-6">{tier.estimated_days}</p>
+                              <div className="flex items-center gap-1 text-xs text-gray-500 mt-1 ml-6">
                                 <Clock className="h-3 w-3" />
-                                Order by {tier.cutoffHour}:00 to qualify
+                                Order by {tier.cutoff_hour}:00 to qualify
                               </div>
                             </div>
                             {price != null && (
-                              <span className="font-bold text-primary-600 ml-4 text-lg">
-                                £{price.toFixed(2)}
+                              <span className={`font-bold ml-4 text-lg ${selected ? 'text-blue-600' : 'text-gray-700'}`}>
+                                £{Number(price).toFixed(2)}
                               </span>
                             )}
                           </div>
                         </button>
                       )
                     })}
+                    {!shippingTier && (
+                      <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                        Select a shipping option above to continue
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -363,6 +387,7 @@ const Checkout = () => {
           </form>
         </div>
       </div>
+    </div>
     </div>
   )
 }

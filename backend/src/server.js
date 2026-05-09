@@ -845,12 +845,20 @@ app.get('*', (req, res, next) => {
 function formatOrder(row) {
   return {
     id: row.id,
+    orderNumber: row.order_number,
     tableNumber: row.table_number,
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
     specialInstructions: row.special_instructions,
     status: row.status,
+    fulfillmentType: row.fulfillment_type || 'collection',
     totalAmount: Number(row.total_amount),
+    deliveryAddress: row.delivery_address_line1 ? {
+      line1: row.delivery_address_line1,
+      line2: row.delivery_address_line2 || null,
+      city: row.delivery_city,
+      postcode: row.delivery_postcode
+    } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     orderItems: row.order_items.map((item) => ({
