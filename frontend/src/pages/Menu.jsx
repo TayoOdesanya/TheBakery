@@ -11,18 +11,12 @@ const Menu = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showCart, setShowCart] = useState(false)
-  const { 
-    addItem, 
-    getItemCount, 
-    items, 
-    getTotal, 
-    removeItem,
-    updateQuantity,
-    tableNumber,
-    setTableNumber,
-    specialInstructions,
-    setSpecialInstructions,
-    clearCart
+  const {
+    addItem, getItemCount, items, getSubtotal, getTotal,
+    removeItem, updateQuantity, clearCart,
+    fulfillmentType, setFulfillmentType,
+    shippingCost,
+    specialInstructions, setSpecialInstructions,
   } = useCart()
 
   const navigate = useNavigate()
@@ -41,16 +35,13 @@ const Menu = () => {
   const groupedCategoryNames = Object.keys(groupedMenuItems)
 
   useEffect(() => {
-    // Set base URL once
-    axios.defaults.baseURL = 'http://localhost:3001/api'
-    
     fetchCategories()
     fetchMenu()
   }, [])
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/menu/categories')
+      const response = await axios.get('/api/menu/categories')
       setCategories(response.data)
     } catch (error) {
       console.error('Error fetching categories:', error)
@@ -61,10 +52,10 @@ const Menu = () => {
     try {
       setLoading(true)
       
-      const url = category && category !== 'all' 
-        ? `/menu?category=${encodeURIComponent(category)}`
-        : '/menu'
-      
+      const url = category && category !== 'all'
+        ? `/api/menu?category=${encodeURIComponent(category)}`
+        : '/api/menu'
+
       const response = await axios.get(url)
       setMenuItems(response.data)
       setError(null)
@@ -87,16 +78,11 @@ const Menu = () => {
   }
 
   const handleCheckout = () => {
-    if (!tableNumber || parseInt(tableNumber) <= 0) {
-      alert('Please enter a valid table number')
+    if (items.length === 0) return
+    if (!fulfillmentType) {
+      alert('Please select Collection or Delivery before proceeding.')
       return
     }
-
-    if (items.length === 0) {
-      alert('Your cart is empty')
-      return
-    }
-
     navigate('/checkout')
   }
 
@@ -348,16 +334,16 @@ const Menu = () => {
                           )}
 
                           <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-                            <span className="text-sm text-gray-500">
-                              Stock: {item.inventory?.quantityAvailable || 0}
-                            </span>
-                            <button 
-                              onClick={() => handleAddToCart(item)}
-                              className="bg-[#ff9f32] px-4 py-2 font-bold text-white transition-colors hover:bg-[#252525] disabled:opacity-50"
-                              disabled={!item.inventory || item.inventory.quantityAvailable === 0}
-                            >
-                              Add to Cart
-                            </button>
+                            {item.isSoldOut ? (
+                              <span className="w-full text-center py-2 text-sm font-bold text-gray-400 bg-gray-100 rounded">Sold Out</span>
+                            ) : (
+                              <button
+                                onClick={() => handleAddToCart(item)}
+                                className="w-full bg-[#ff9f32] px-4 py-2 font-bold text-white transition-colors hover:bg-[#252525]"
+                              >
+                                Add to Cart
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -490,61 +476,74 @@ const Menu = () => {
                   ))}
                 </div>
 
-                <div className="border-t pt-4 mb-6">
-                  <div className="flex justify-between items-center text-lg font-bold">
-                    <span>Total:</span>
+                <div className="border-t pt-4 mb-4 space-y-1">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Subtotal</span>
+                    <span>£{getSubtotal().toFixed(2)}</span>
+                  </div>
+                  {shippingCost > 0 && (
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Shipping</span>
+                      <span>£{shippingCost.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg font-bold pt-1 border-t">
+                    <span>Total</span>
                     <span>£{getTotal().toFixed(2)}</span>
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  {/* Fulfilment toggle */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Table Number *
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Enter table number"
-                      value={tableNumber}
-                      onChange={(e) => setTableNumber(e.target.value)}
-                      className="input-field"
-                      min="1"
-                      max="50"
-                      required
-                    />
+                    <p className="text-sm font-medium text-gray-700 mb-2">How would you like to receive your order? *</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['collection', 'delivery'].map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setFulfillmentType(type)}
+                          className={`py-2 text-sm font-bold border-2 rounded transition-colors capitalize ${
+                            fulfillmentType === type
+                              ? 'border-[#ff9f32] bg-[#ff9f32] text-white'
+                              : 'border-gray-200 text-gray-600 hover:border-[#ff9f32]'
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                    {fulfillmentType === 'delivery' && getSubtotal() < 10 && (
+                      <p className="text-xs text-amber-600 mt-2 bg-amber-50 rounded px-2 py-1">
+                        Minimum order for delivery is £10.00 (currently £{getSubtotal().toFixed(2)})
+                      </p>
+                    )}
+                    {fulfillmentType === 'delivery' && (
+                      <p className="text-xs text-gray-500 mt-1">Shipping cost and address will be confirmed at checkout.</p>
+                    )}
                   </div>
 
                   <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Special Instructions (Optional)
-                  </label>
-                  <textarea
-                    placeholder="e.g., No dairy, vegan option, extra spicy, allergies..."
-                    value={specialInstructions}
-                    onChange={(e) => setSpecialInstructions(e.target.value)}
-                    className="input-field"
-                    rows="3"
-                    maxLength="500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {specialInstructions.length}/500 characters
-                  </p>
-                </div>
-                  
-                  <button 
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Special Instructions (Optional)</label>
+                    <textarea
+                      placeholder="Allergies, dietary requirements, gift message…"
+                      value={specialInstructions}
+                      onChange={(e) => setSpecialInstructions(e.target.value)}
+                      className="input-field"
+                      rows="2"
+                      maxLength="500"
+                    />
+                  </div>
+
+                  <button
                     onClick={handleCheckout}
-                    disabled={!tableNumber || parseInt(tableNumber) <= 0}
+                    disabled={!fulfillmentType || items.length === 0 || (fulfillmentType === 'delivery' && getSubtotal() < 10)}
                     className="btn-primary w-full py-3 disabled:opacity-50"
                   >
                     Proceed to Checkout
                   </button>
-                  
-                  <button 
-                    onClick={clearCart}
-                    className="btn-secondary w-full"
-                  >
-                    Clear Cart
-                  </button>
+
+                  <button onClick={clearCart} className="btn-secondary w-full">Clear Cart</button>
                 </div>
               </>
             )}
