@@ -34,7 +34,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate()
   const { token, logout } = useAuth()
 
-  const CATEGORIES = ['Bowls', 'Sides', 'Dips', 'Desserts']
+  const CATEGORIES = ['Baked Goods', 'Cooking Ingredients']
 
   useEffect(() => {
     if (!token) return
@@ -170,7 +170,8 @@ const AdminDashboard = () => {
           description: formData.description,
           price: parseFloat(formData.price),
           category: formData.category,
-          imageUrl: formData.imageUrl || null
+          imageUrl: formData.imageUrl || null,
+          quantityAvailable: parseInt(formData.stock)
         })
       } else {
         await axios.post('/api/admin/menu-items', {
@@ -316,7 +317,7 @@ const AdminDashboard = () => {
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {menuItems.map((item) => (
-                <div key={item.id} className="border border-gray-200 rounded-lg p-4">
+                <div key={item.id} className="border border-gray-200 rounded-lg p-4 flex flex-col">
                   {item.imageUrl && (
                     <img src={item.imageUrl} alt={item.name} className="w-full h-32 object-cover rounded mb-3" />
                   )}
@@ -331,7 +332,7 @@ const AdminDashboard = () => {
                     <span className="text-lg font-bold text-blue-600">£{parseFloat(item.price).toFixed(2)}</span>
                     <span className="text-sm text-gray-500">Stock: {item.inventory?.quantityAvailable || 0}</span>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-2 mt-auto">
                     <button onClick={() => handleEdit(item)} className="flex-1 btn-secondary flex items-center justify-center space-x-1">
                       <Edit2 className="h-4 w-4" />
                       <span>Edit</span>
@@ -572,19 +573,17 @@ const AdminDashboard = () => {
                   className="input-field"
                 />
               </div>
-              {!editingItem && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Initial Stock *</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                    className="input-field"
-                    min="0"
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{editingItem ? 'Stock' : 'Initial Stock'} *</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                  className="input-field"
+                  min="0"
+                />
+              </div>
               <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={resetForm} className="btn-secondary">Cancel</button>
                 <button type="submit" className="btn-primary">{editingItem ? 'Update' : 'Add'} Item</button>

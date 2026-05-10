@@ -90,6 +90,7 @@ function toMenuItem(row) {
     imageUrl: row.image_url,
     category: row.category,
     isAvailable: row.is_available,
+    isSoldOut: row.quantity_available !== null && Number(row.quantity_available) === 0,
     inventory: {
       quantityAvailable: row.quantity_available ?? 0,
       lowStockThreshold: row.low_stock_threshold ?? 5
@@ -398,7 +399,6 @@ app.get('/api/menu', async (req, res, next) => {
       from bakery_menu_items mi
       left join bakery_inventory i on i.menu_item_id = mi.id
       where mi.is_available = true
-        and coalesce(i.quantity_available, 1) > 0
         ${categoryFilter}
       order by mi.category asc, mi.name asc
     `, params);
