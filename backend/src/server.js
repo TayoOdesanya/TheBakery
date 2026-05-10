@@ -11,6 +11,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
 import { closePool, pool, query } from './db.js';
+import { notifyOrderConfirmed, notifyOrderDispatched, notifyOrderUpdate, notifyBakeryOverdue } from './notifications.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -142,9 +143,24 @@ function isLikelyPlaceholderStripeKey(key) {
 }
 
 async function createPendingOrder(client, payload) {
-  const { tableNumber, customerName, customerPhone, specialInstructions, items } = payload;
-  if (!tableNumber || !Array.isArray(items) || items.length === 0) {
-    throw new Error('Table number and cart items are required');
+  const {
+    tableNumber, customerName, customerPhone, customerEmail,
+    specialInstructions, items,
+    fulfillmentType = 'collection',
+    shippingType, shippingTier,
+    deliveryAddress,
+    deliveryAddressLine1, deliveryAddressLine2, deliveryCity, deliveryPostcode,
+  } = payload;
+
+  const resolvedShippingType = shippingType || shippingTier || 'standard';
+  const resolvedAddress = deliveryAddress || (deliveryAddressLine1 ? {
+    line1: deliveryAddressLine1,
+    line2: deliveryAddressLine2 || null,
+    city: deliveryCity,
+    postcode: deliveryPostcode,
+  } : null);
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('Cart items are required');
   }
 
   const { serviceFee, totalAmount } = await calculateOrderItems(client, items);
@@ -175,23 +191,37 @@ async function createPendingOrder(client, payload) {
       table_number,
       customer_name,
       customer_phone,
+      customer_email,
       special_instructions,
       order_number,
       total_amount,
       service_fee,
-      stripe_payment_intent_id
+      stripe_payment_intent_id,
+      fulfillment_type,
+      shipping_type,
+      delivery_address_line1,
+      delivery_address_line2,
+      delivery_city,
+      delivery_postcode
     )
-    values ($1, $2, $3, $4, $5, $6, $7, $8)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     returning *
   `, [
-    Number(tableNumber),
+    Number(tableNumber) || 0,
     customerName || 'Guest',
     customerPhone || '',
+    customerEmail || null,
     specialInstructions || null,
     orderNumber,
     totalAmount,
     serviceFee,
-    paymentIntent?.id || null
+    paymentIntent?.id || null,
+    fulfillmentType,
+    resolvedShippingType,
+    resolvedAddress?.line1 || null,
+    resolvedAddress?.line2 || null,
+    resolvedAddress?.city || null,
+    resolvedAddress?.postcode || null,
   ]);
 
   return { order: orderResult.rows[0], clientSecret: paymentIntent?.client_secret || null };
@@ -242,7 +272,15 @@ async function completePendingOrder(orderId, payload) {
     `, [serviceFee, totalAmount, payload.paymentMethod || 'manual', order.id]);
 
     await client.query('commit');
-    return { order: updatedResult.rows[0], items: orderItems };
+    const paidOrder = updatedResult.rows[0];
+    notifyOrderConfirmed({
+      customerName: paidOrder.customer_name,
+      orderNumber: paidOrder.order_number,
+      customerEmail: paidOrder.customer_email,
+      customerPhone: paidOrder.customer_phone,
+      fulfillmentType: paidOrder.fulfillment_type || 'collection',
+    }).catch((e) => console.warn('[confirm notify]', e.message));
+    return { order: paidOrder, items: orderItems };
   } catch (error) {
     await client.query('rollback');
     throw error;
@@ -313,6 +351,39 @@ app.get('/api/menu/categories', async (req, res, next) => {
   }
 });
 
+app.get('/api/shipping/rates', (req, res) => {
+  res.json({
+    rates: [
+      {
+        tier: 'standard',
+        display_name: 'Standard Delivery',
+        estimated_days: '3–5 working days',
+        cutoff_hour: 14,
+        rates: [
+          { max_grams: 500,  price: 3.99 },
+          { max_grams: 1000, price: 4.99 },
+          { max_grams: 2000, price: 5.99 },
+          { max_grams: 5000, price: 7.99 },
+          { max_grams: 99999, price: 9.99 },
+        ],
+      },
+      {
+        tier: 'express',
+        display_name: 'Express Delivery',
+        estimated_days: '1–2 working days',
+        cutoff_hour: 12,
+        rates: [
+          { max_grams: 500,  price: 6.99 },
+          { max_grams: 1000, price: 8.99 },
+          { max_grams: 2000, price: 10.99 },
+          { max_grams: 5000, price: 13.99 },
+          { max_grams: 99999, price: 16.99 },
+        ],
+      },
+    ],
+  });
+});
+
 app.get('/api/menu', async (req, res, next) => {
   try {
     const params = [];
@@ -367,8 +438,49 @@ app.post('/api/orders/:orderId/complete', async (req, res, next) => {
   }
 });
 
+const kitchenOrdersQuery = `
+  select
+    o.*,
+    coalesce(json_agg(json_build_object(
+      'id', oi.id,
+      'quantity', oi.quantity,
+      'unitPrice', oi.unit_price,
+      'subtotal', oi.subtotal,
+      'menuItem', json_build_object('id', mi.id, 'name', mi.name, 'price', mi.price)
+    ) order by oi.id) filter (where oi.id is not null), '[]') as order_items
+  from bakery_orders o
+  left join bakery_order_items oi on oi.order_id = o.id
+  left join bakery_menu_items mi on mi.id = oi.menu_item_id
+  where o.status in ('paid', 'preparing', 'ready')
+  group by o.id
+  order by o.created_at asc
+`;
+
 app.get('/api/orders/kitchen', async (req, res, next) => {
   try {
+    const result = await query(kitchenOrdersQuery);
+    const orders = result.rows.map(formatOrder);
+
+    // Fire overdue alerts for any newly-overdue delivery orders
+    const ownerEmail = process.env.BAKERY_OWNER_EMAIL;
+    for (const order of orders) {
+      if (order.isOverdue && !order.alertTriggered) {
+        await query('update bakery_orders set alert_triggered = true where id = $1', [order.id]);
+        order.alertTriggered = true;
+        notifyBakeryOverdue(order, ownerEmail).catch((e) => console.warn('[overdue alert]', e.message));
+      }
+    }
+
+    res.json({ orders });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/orders/kitchen/history', async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Number(req.query.offset) || 0;
     const result = await query(`
       select
         o.*,
@@ -382,12 +494,62 @@ app.get('/api/orders/kitchen', async (req, res, next) => {
       from bakery_orders o
       left join bakery_order_items oi on oi.order_id = o.id
       left join bakery_menu_items mi on mi.id = oi.menu_item_id
-      where o.status in ('paid', 'preparing', 'ready')
+      where o.status in ('delivered', 'cancelled')
       group by o.id
-      order by o.created_at desc
-    `);
-
+      order by o.updated_at desc
+      limit $1 offset $2
+    `, [limit, offset]);
     res.json({ orders: result.rows.map(formatOrder) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/orders/:orderId/dispatch', async (req, res, next) => {
+  try {
+    const { trackingNumber } = req.body;
+    if (!trackingNumber || !trackingNumber.trim()) {
+      return res.status(400).json({ error: 'Tracking number is required to mark as dispatched' });
+    }
+
+    const result = await query(`
+      update bakery_orders
+      set status = 'delivered', tracking_number = $1, dispatched_at = now(), updated_at = now()
+      where id = $2
+      returning *
+    `, [trackingNumber.trim(), Number(req.params.orderId)]);
+
+    if (!result.rows[0]) return res.status(404).json({ error: 'Order not found' });
+
+    const row = result.rows[0];
+    const orderForNotify = {
+      customerName: row.customer_name,
+      orderNumber: row.order_number,
+      customerEmail: row.customer_email,
+      customerPhone: row.customer_phone,
+      trackingNumber: row.tracking_number,
+      fulfillmentType: row.fulfillment_type || 'collection',
+    };
+    notifyOrderDispatched(orderForNotify).catch((e) => console.warn('[dispatch notify]', e.message));
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/orders/:orderId/notes', async (req, res, next) => {
+  try {
+    const { kitchenNotes } = req.body;
+    const result = await query(`
+      update bakery_orders
+      set kitchen_notes = $1, updated_at = now()
+      where id = $2
+      returning id, kitchen_notes
+    `, [kitchenNotes ?? null, Number(req.params.orderId)]);
+
+    if (!result.rows[0]) return res.status(404).json({ error: 'Order not found' });
+    res.json({ success: true, kitchenNotes: result.rows[0].kitchen_notes });
   } catch (error) {
     next(error);
   }
@@ -411,7 +573,20 @@ app.patch('/api/orders/:orderId/status', async (req, res, next) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    res.json({ success: true, order: result.rows[0] });
+    const row = result.rows[0];
+    if (req.body.status === 'delivered') {
+      const orderForNotify = {
+        customerName: row.customer_name,
+        orderNumber: row.order_number,
+        customerEmail: row.customer_email,
+        customerPhone: row.customer_phone,
+        trackingNumber: row.tracking_number,
+        fulfillmentType: row.fulfillment_type || 'collection',
+      };
+      notifyOrderDispatched(orderForNotify).catch((e) => console.warn('[status notify]', e.message));
+    }
+
+    res.json({ success: true, order: row });
   } catch (error) {
     next(error);
   }
@@ -843,23 +1018,41 @@ app.get('*', (req, res, next) => {
 });
 
 function formatOrder(row) {
+  const createdAt = row.created_at;
+  const isOverdue = (() => {
+    if (row.dispatched_at || row.status === 'delivered') return false;
+    if ((row.shipping_type || 'standard') !== 'standard') return false;
+    if (row.fulfillment_type !== 'delivery') return false;
+    const ageMs = Date.now() - new Date(createdAt).getTime();
+    const workingDayMs = 24 * 60 * 60 * 1000;
+    return ageMs > 2 * workingDayMs;
+  })();
+
   return {
     id: row.id,
     orderNumber: row.order_number,
     tableNumber: row.table_number,
     customerName: row.customer_name,
+    customerEmail: row.customer_email || null,
     customerPhone: row.customer_phone,
     specialInstructions: row.special_instructions,
     status: row.status,
     fulfillmentType: row.fulfillment_type || 'collection',
+    shippingType: row.shipping_type || 'standard',
     totalAmount: Number(row.total_amount),
+    trackingNumber: row.tracking_number || null,
+    kitchenNotes: row.kitchen_notes || null,
+    dispatchedAt: row.dispatched_at || null,
+    alertTriggered: row.alert_triggered || false,
+    isOverdue,
     deliveryAddress: row.delivery_address_line1 ? {
+      name: row.customer_name,
       line1: row.delivery_address_line1,
       line2: row.delivery_address_line2 || null,
       city: row.delivery_city,
       postcode: row.delivery_postcode
     } : null,
-    createdAt: row.created_at,
+    createdAt,
     updatedAt: row.updated_at,
     orderItems: row.order_items.map((item) => ({
       id: item.id,

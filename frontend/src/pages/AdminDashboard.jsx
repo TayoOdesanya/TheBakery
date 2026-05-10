@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, Package, LogOut, TrendingUp, Mail, Copy, UserX, UserCheck, Link } from 'lucide-react'
+import { useNavigate, Link as RouterLink } from 'react-router-dom'
+import { Plus, Edit2, Trash2, Package, LogOut, TrendingUp, Mail, Copy, UserX, UserCheck, Link, ChefHat } from 'lucide-react'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
@@ -232,10 +232,19 @@ const AdminDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">Bakery Admin</h1>
-            <button onClick={handleLogout} className="btn-error flex items-center space-x-2">
-              <LogOut className="h-4 w-4" />
-              <span>Logout</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <RouterLink
+                to="/kitchen"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <ChefHat className="h-4 w-4" />
+                Kitchen
+              </RouterLink>
+              <button onClick={handleLogout} className="btn-error flex items-center space-x-2">
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

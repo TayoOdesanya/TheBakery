@@ -116,7 +116,7 @@ const Menu = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#ff9f32]">Freshly baked daily</p>
-              <h1 className="text-3xl font-black text-[#252525]">Tayo's Bakery</h1>
+              <h1 className="text-3xl font-black text-[#252525]">The Bakery</h1>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -148,7 +148,7 @@ const Menu = () => {
         />
         <div className="relative mx-auto grid min-h-[640px] max-w-7xl items-center gap-10 px-4 py-16 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <p className="mb-4 text-sm font-bold uppercase tracking-[0.25em] text-[#ff9f32]">Tayo's Bakery</p>
+            <p className="mb-4 text-sm font-bold uppercase tracking-[0.25em] text-[#ff9f32]">The Bakery</p>
             <h2 className="max-w-xl text-6xl font-light leading-[1.15] text-[#252525] sm:text-7xl lg:text-8xl">
               Delicious Baked Goodness
             </h2>
