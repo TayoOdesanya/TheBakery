@@ -17,7 +17,10 @@ const AdminDashboard = () => {
     price: '',
     category: '',
     imageUrl: '',
-    stock: '0'
+    stock: '0',
+    weightGrams: '',
+    ingredients: '',
+    allergens: ''
   })
 
   const [invites, setInvites] = useState([])
@@ -30,6 +33,10 @@ const AdminDashboard = () => {
   const [csvText, setCsvText] = useState('')
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvResults, setCsvResults] = useState(null)
+
+  const [buyers, setBuyers] = useState([])
+  const [buyersLoading, setBuyersLoading] = useState(false)
+  const [togglingUserId, setTogglingUserId] = useState(null)
 
   const navigate = useNavigate()
   const { token, logout } = useAuth()
@@ -45,6 +52,9 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (activeTab === 'invites' && token) {
       fetchInvites()
+    }
+    if (activeTab === 'buyers' && token) {
+      fetchBuyers()
     }
   }, [activeTab, token])
 
@@ -63,6 +73,30 @@ const AdminDashboard = () => {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchBuyers = async () => {
+    setBuyersLoading(true)
+    try {
+      const res = await axios.get('/api/admin/users')
+      setBuyers(res.data.users.filter((u) => u.role === 'buyer'))
+    } catch (error) {
+      console.error('Failed to load buyers', error)
+    } finally {
+      setBuyersLoading(false)
+    }
+  }
+
+  const handleToggleUser = async (user) => {
+    setTogglingUserId(user.id)
+    try {
+      await axios.patch(`/api/admin/users/${user.id}/status`, { isActive: !user.is_active })
+      setBuyers((prev) => prev.map((u) => u.id === user.id ? { ...u, is_active: !u.is_active } : u))
+    } catch {
+      alert('Failed to update user status')
+    } finally {
+      setTogglingUserId(null)
     }
   }
 
@@ -164,23 +198,20 @@ const AdminDashboard = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        price: parseFloat(formData.price),
+        category: formData.category,
+        imageUrl: formData.imageUrl || null,
+        weightGrams: formData.weightGrams ? parseInt(formData.weightGrams) : null,
+        ingredients: formData.ingredients || null,
+        allergens: formData.allergens || null,
+      }
       if (editingItem) {
-        await axios.put(`/api/admin/menu-items/${editingItem.id}`, {
-          name: formData.name,
-          description: formData.description,
-          price: parseFloat(formData.price),
-          category: formData.category,
-          imageUrl: formData.imageUrl || null
-        })
+        await axios.put(`/api/admin/menu-items/${editingItem.id}`, payload)
       } else {
-        await axios.post('/api/admin/menu-items', {
-          name: formData.name,
-          description: formData.description,
-          price: parseFloat(formData.price),
-          category: formData.category,
-          imageUrl: formData.imageUrl || null,
-          initialInventory: parseInt(formData.stock)
-        })
+        await axios.post('/api/admin/menu-items', { ...payload, initialInventory: parseInt(formData.stock) })
       }
       resetForm()
       fetchData()
@@ -197,7 +228,10 @@ const AdminDashboard = () => {
       price: item.price.toString(),
       category: item.category || '',
       imageUrl: item.imageUrl || '',
-      stock: item.inventory?.quantityAvailable?.toString() || '0'
+      stock: item.inventory?.quantityAvailable?.toString() || '0',
+      weightGrams: item.weightGrams?.toString() || '',
+      ingredients: item.ingredients || '',
+      allergens: item.allergens || ''
     })
     setShowAddForm(true)
   }
@@ -213,7 +247,7 @@ const AdminDashboard = () => {
   }
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', price: '', category: '', imageUrl: '', stock: '0' })
+    setFormData({ name: '', description: '', price: '', category: '', imageUrl: '', stock: '0', weightGrams: '', ingredients: '', allergens: '' })
     setEditingItem(null)
     setShowAddForm(false)
   }
@@ -289,6 +323,7 @@ const AdminDashboard = () => {
           {[
             { id: 'menu', label: 'Menu Management' },
             { id: 'invites', label: 'Invite Buyers' },
+            { id: 'buyers', label: 'Manage Buyers' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -344,6 +379,55 @@ const AdminDashboard = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Buyers Tab */}
+        {activeTab === 'buyers' && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-blue-600" />
+              Registered Buyers
+            </h2>
+            {buyersLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              </div>
+            ) : buyers.length === 0 ? (
+              <p className="text-gray-500 text-sm text-center py-8">No buyers registered yet.</p>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {buyers.map((buyer) => (
+                  <div key={buyer.id} className="py-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900">{buyer.email || buyer.phone}</p>
+                      {buyer.email && buyer.phone && (
+                        <p className="text-sm text-gray-500">{buyer.phone}</p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        ID: {buyer.buyer_id} · Joined {new Date(buyer.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${buyer.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                        {buyer.is_active ? 'Active' : 'Deactivated'}
+                      </span>
+                      <button
+                        onClick={() => handleToggleUser(buyer)}
+                        disabled={togglingUserId === buyer.id}
+                        title={buyer.is_active ? 'Deactivate buyer' : 'Reactivate buyer'}
+                        className={`p-1.5 rounded transition-colors ${buyer.is_active ? 'text-gray-500 hover:text-red-600 hover:bg-red-50' : 'text-gray-500 hover:text-green-600 hover:bg-green-50'}`}
+                      >
+                        {togglingUserId === buyer.id
+                          ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400" />
+                          : buyer.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />
+                        }
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -510,7 +594,7 @@ const AdminDashboard = () => {
       {/* Add/Edit Form Modal */}
       {showAddForm && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white max-h-screen overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
             </h3>
@@ -569,6 +653,38 @@ const AdminDashboard = () => {
                   placeholder="https://example.com/image.jpg"
                   value={formData.imageUrl}
                   onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Weight (grams)</label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 800"
+                  value={formData.weightGrams}
+                  onChange={(e) => setFormData({...formData, weightGrams: e.target.value})}
+                  className="input-field"
+                />
+                <p className="text-xs text-gray-400 mt-1">Used to calculate Royal Mail shipping cost</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ingredients</label>
+                <textarea
+                  placeholder="e.g. Flour, water, salt, yeast"
+                  value={formData.ingredients}
+                  onChange={(e) => setFormData({...formData, ingredients: e.target.value})}
+                  className="input-field"
+                  rows="2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Allergens</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Gluten, eggs, dairy"
+                  value={formData.allergens}
+                  onChange={(e) => setFormData({...formData, allergens: e.target.value})}
                   className="input-field"
                 />
               </div>

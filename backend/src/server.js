@@ -39,7 +39,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(staticPath));
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
@@ -48,7 +48,13 @@ function requireAuth(req, res, next) {
   }
 
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const result = await query('select is_active from bakery_users where id = $1', [decoded.userId]);
+    const user = result.rows[0];
+    if (!user || !user.is_active) {
+      return res.status(403).json({ error: 'Account deactivated. Please contact the bakery.' });
+    }
+    req.user = decoded;
     next();
   } catch {
     res.status(403).json({ error: 'Invalid or expired token' });
@@ -82,6 +88,7 @@ function maskContact(email, phone) {
 }
 
 function toMenuItem(row) {
+  const qty = row.quantity_available ?? 0;
   return {
     id: row.id,
     name: row.name,
@@ -90,11 +97,46 @@ function toMenuItem(row) {
     imageUrl: row.image_url,
     category: row.category,
     isAvailable: row.is_available,
+    weightGrams: row.weight_grams ?? 500,
+    ingredients: row.ingredients || null,
+    allergens: row.allergens || null,
+    isSoldOut: row.is_available && qty <= 0,
     inventory: {
-      quantityAvailable: row.quantity_available ?? 0,
+      quantityAvailable: qty,
       lowStockThreshold: row.low_stock_threshold ?? 5
     }
   };
+}
+
+function calculateShippingCost(weightGrams, tierRates) {
+  const entry = tierRates.rates.find((r) => weightGrams <= r.max_grams)
+    ?? tierRates.rates[tierRates.rates.length - 1];
+  return Number(entry.price);
+}
+
+function getEstimatedDelivery(cutoffHour, daysToAdd) {
+  const now = new Date();
+  const ukNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+  const isWeekend = (d) => d.getDay() === 0 || d.getDay() === 6;
+
+  const addWorkingDays = (date, n) => {
+    const d = new Date(date);
+    let added = 0;
+    while (added < n) {
+      d.setDate(d.getDate() + 1);
+      if (!isWeekend(d)) added++;
+    }
+    return d;
+  };
+
+  const shipDate = ukNow.getHours() < cutoffHour
+    ? new Date(ukNow)
+    : addWorkingDays(ukNow, 1);
+
+  let dispatch = new Date(shipDate);
+  while (isWeekend(dispatch)) dispatch = addWorkingDays(dispatch, 1);
+
+  return addWorkingDays(dispatch, daysToAdd);
 }
 
 async function calculateOrderItems(client, items, { lockInventory = false } = {}) {
@@ -163,7 +205,48 @@ async function createPendingOrder(client, payload) {
     throw new Error('Cart items are required');
   }
 
-  const { serviceFee, totalAmount } = await calculateOrderItems(client, items);
+  if (!['collection', 'delivery'].includes(fulfillmentType)) {
+    throw new Error('Invalid fulfillment type');
+  }
+
+  if (fulfillmentType === 'delivery') {
+    if (!deliveryName || !deliveryAddressLine1 || !deliveryCity || !deliveryPostcode) {
+      throw new Error('Full delivery address is required');
+    }
+    if (!shippingTier) throw new Error('Shipping tier is required for delivery');
+  }
+
+  const { serviceFee, subtotalAmount, totalAmount: itemsTotal } = await calculateOrderItems(client, items);
+
+  if (fulfillmentType === 'delivery' && subtotalAmount < 10) {
+    throw new Error('Minimum order for delivery is £10.00');
+  }
+
+  let shippingCost = 0;
+  let estimatedDelivery = null;
+
+  if (fulfillmentType === 'delivery') {
+    const ratesResult = await client.query('select * from bakery_shipping_rates where tier = $1', [shippingTier]);
+    const tierRates = ratesResult.rows[0];
+    if (!tierRates) throw new Error('Invalid shipping tier');
+
+    const weightResult = await client.query(`
+      select coalesce(sum(mi.weight_grams * $1::int), 0) as total_weight
+      from unnest($2::int[]) with ordinality as u(id, ord)
+      join bakery_menu_items mi on mi.id = u.id
+    `, [1, items.map((i) => i.menuItemId)]);
+
+    let totalWeight = 0;
+    for (const item of items) {
+      const menuRes = await client.query('select coalesce(weight_grams, 500) as w from bakery_menu_items where id = $1', [item.menuItemId]);
+      totalWeight += (menuRes.rows[0]?.w ?? 500) * Number(item.quantity);
+    }
+
+    shippingCost = calculateShippingCost(totalWeight, tierRates);
+    estimatedDelivery = getEstimatedDelivery(tierRates.cutoff_hour, shippingTier === 'next_day' ? 1 : 2);
+  }
+
+  const totalAmount = Number((itemsTotal + shippingCost).toFixed(2));
   const orderNumber = `BKY-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   let paymentIntent = null;
 
@@ -398,7 +481,6 @@ app.get('/api/menu', async (req, res, next) => {
       from bakery_menu_items mi
       left join bakery_inventory i on i.menu_item_id = mi.id
       where mi.is_available = true
-        and coalesce(i.quantity_available, 1) > 0
         ${categoryFilter}
       order by mi.category asc, mi.name asc
     `, params);
@@ -610,17 +692,18 @@ app.post('/api/admin/menu-items', requireAuth, async (req, res, next) => {
   const client = await pool.connect();
 
   try {
-    const { name, description, price, imageUrl, category, initialInventory = 0 } = req.body;
+    const { name, description, price, imageUrl, category, initialInventory = 0, weightGrams, ingredients, allergens } = req.body;
     if (!name || !price) {
       return res.status(400).json({ error: 'Name and price are required' });
     }
 
     await client.query('begin');
     const itemResult = await client.query(`
-      insert into bakery_menu_items (name, description, price, image_url, category, is_available)
-      values ($1, $2, $3, $4, $5, true)
+      insert into bakery_menu_items (name, description, price, image_url, category, is_available, weight_grams, ingredients, allergens)
+      values ($1, $2, $3, $4, $5, true, $6, $7, $8)
       returning *
-    `, [name, description || null, Number(price), imageUrl || null, category || null]);
+    `, [name, description || null, Number(price), imageUrl || null, category || null,
+        weightGrams ? Number(weightGrams) : null, ingredients || null, allergens || null]);
 
     await client.query(`
       insert into bakery_inventory (menu_item_id, quantity_available, low_stock_threshold)
@@ -639,7 +722,7 @@ app.post('/api/admin/menu-items', requireAuth, async (req, res, next) => {
 
 app.put('/api/admin/menu-items/:id', requireAuth, async (req, res, next) => {
   try {
-    const { name, description, price, imageUrl, category, isAvailable, quantityAvailable } = req.body;
+    const { name, description, price, imageUrl, category, isAvailable, quantityAvailable, weightGrams, ingredients, allergens } = req.body;
     const id = Number(req.params.id);
 
     const result = await query(`
@@ -650,10 +733,14 @@ app.put('/api/admin/menu-items/:id', requireAuth, async (req, res, next) => {
           image_url = $4,
           category = $5,
           is_available = $6,
+          weight_grams = $7,
+          ingredients = $8,
+          allergens = $9,
           updated_at = now()
-      where id = $7
+      where id = $10
       returning *
-    `, [name, description || null, Number(price), imageUrl || null, category || null, isAvailable !== false, id]);
+    `, [name, description || null, Number(price), imageUrl || null, category || null, isAvailable !== false,
+        weightGrams ? Number(weightGrams) : null, ingredients || null, allergens || null, id]);
 
     if (!result.rows[0]) {
       return res.status(404).json({ error: 'Menu item not found' });
@@ -975,6 +1062,36 @@ app.post('/api/auth/verify-login-otp', async (req, res, next) => {
   }
 });
 
+app.get('/api/shipping/rates', async (req, res, next) => {
+  try {
+    const result = await query('select * from bakery_shipping_rates order by id asc');
+    res.json({ rates: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/shipping-rates/:tier', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { displayName, description, cutoffHour, estimatedDays, rates } = req.body;
+    const result = await query(`
+      update bakery_shipping_rates
+      set display_name = coalesce($1, display_name),
+          description = coalesce($2, description),
+          cutoff_hour = coalesce($3, cutoff_hour),
+          estimated_days = coalesce($4, estimated_days),
+          rates = coalesce($5, rates),
+          updated_at = now()
+      where tier = $6
+      returning *
+    `, [displayName, description, cutoffHour, estimatedDays, rates ? JSON.stringify(rates) : null, req.params.tier]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Tier not found' });
+    res.json({ rate: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const result = await query(`
@@ -1079,6 +1196,18 @@ function formatCompletedOrder(order, items = []) {
     status: order.status,
     totalAmount: Number(order.total_amount),
     serviceFee: Number(order.service_fee || 0),
+    shippingCost: Number(order.shipping_cost || 0),
+    fulfillmentType: order.fulfillment_type || 'collection',
+    shippingTier: order.shipping_tier || null,
+    deliveryName: order.delivery_name || null,
+    deliveryPhone: order.delivery_phone || null,
+    deliveryAddress: order.delivery_address_line1 ? {
+      line1: order.delivery_address_line1,
+      line2: order.delivery_address_line2 || null,
+      city: order.delivery_city,
+      postcode: order.delivery_postcode
+    } : null,
+    estimatedDelivery: order.estimated_delivery || null,
     createdAt: order.created_at,
     updatedAt: order.updated_at,
     orderItems: items.map((item, index) => ({

@@ -38,10 +38,17 @@ async function main() {
       image_url text,
       category text,
       is_available boolean not null default true,
+      weight_grams integer,
+      ingredients text,
+      allergens text,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )
   `);
+
+  await query('alter table bakery_menu_items add column if not exists weight_grams integer');
+  await query('alter table bakery_menu_items add column if not exists ingredients text');
+  await query('alter table bakery_menu_items add column if not exists allergens text');
 
   await query(`
     create table if not exists bakery_inventory (
@@ -56,7 +63,7 @@ async function main() {
   await query(`
     create table if not exists bakery_orders (
       id serial primary key,
-      table_number integer not null,
+      table_number integer,
       customer_name text,
       customer_phone text,
       special_instructions text,
@@ -64,8 +71,18 @@ async function main() {
       order_number text,
       total_amount numeric(10, 2) not null,
       service_fee numeric(10, 2) not null default 0,
+      shipping_cost numeric(10, 2) not null default 0,
       stripe_payment_intent_id text,
       payment_method text,
+      fulfillment_type text not null default 'collection',
+      shipping_tier text,
+      delivery_name text,
+      delivery_phone text,
+      delivery_address_line1 text,
+      delivery_address_line2 text,
+      delivery_city text,
+      delivery_postcode text,
+      estimated_delivery date,
       completed_at timestamptz,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
@@ -74,20 +91,26 @@ async function main() {
 
   await query('alter table bakery_orders add column if not exists order_number text');
   await query('alter table bakery_orders add column if not exists service_fee numeric(10, 2) not null default 0');
+  await query('alter table bakery_orders add column if not exists shipping_cost numeric(10, 2) not null default 0');
   await query('alter table bakery_orders add column if not exists stripe_payment_intent_id text');
   await query('alter table bakery_orders add column if not exists payment_method text');
-  await query('alter table bakery_orders add column if not exists completed_at timestamptz');
   await query('alter table bakery_orders add column if not exists fulfillment_type text not null default \'collection\'');
+  await query('alter table bakery_orders add column if not exists shipping_tier text');
+  await query('alter table bakery_orders add column if not exists delivery_name text');
+  await query('alter table bakery_orders add column if not exists delivery_phone text');
   await query('alter table bakery_orders add column if not exists delivery_address_line1 text');
   await query('alter table bakery_orders add column if not exists delivery_address_line2 text');
   await query('alter table bakery_orders add column if not exists delivery_city text');
   await query('alter table bakery_orders add column if not exists delivery_postcode text');
+  await query('alter table bakery_orders add column if not exists estimated_delivery date');
+  await query('alter table bakery_orders add column if not exists completed_at timestamptz');
   await query('alter table bakery_orders add column if not exists customer_email text');
   await query('alter table bakery_orders add column if not exists tracking_number text');
   await query('alter table bakery_orders add column if not exists kitchen_notes text');
   await query('alter table bakery_orders add column if not exists shipping_type text not null default \'standard\'');
   await query('alter table bakery_orders add column if not exists dispatched_at timestamptz');
   await query('alter table bakery_orders add column if not exists alert_triggered boolean not null default false');
+  await query('alter table bakery_orders alter column table_number drop not null');
 
   await query(`
     create table if not exists bakery_order_items (
