@@ -302,11 +302,11 @@ const Menu = () => {
                   </h2>
                   <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {categoryItems.map((item) => (
-                      <div key={item.id} className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+                      <div key={item.id} className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col">
                         {item.imageUrl && (
                           <div className="aspect-[4/3] overflow-hidden bg-white p-8">
-                            <img 
-                              src={item.imageUrl} 
+                            <img
+                              src={item.imageUrl}
                               alt={item.name}
                               className="h-full w-full object-contain"
                               onError={(e) => {
@@ -315,8 +315,8 @@ const Menu = () => {
                             />
                           </div>
                         )}
-                        
-                        <div className="p-6">
+
+                        <div className="p-6 flex flex-col flex-1">
                           <div className="mb-4">
                             <div>
                               <h3 className="text-2xl font-medium text-[#111827]">{item.name}</h3>
@@ -333,7 +333,7 @@ const Menu = () => {
                             <p className="mb-4 text-sm leading-6 text-gray-600">{item.description}</p>
                           )}
 
-                          <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                          <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4 mt-auto">
                             {item.isSoldOut ? (
                               <span className="w-full text-center py-2 text-sm font-bold text-gray-400 bg-gray-100 rounded">Sold Out</span>
                             ) : (
@@ -357,11 +357,11 @@ const Menu = () => {
           // Show items in grid when a specific category is selected
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {menuItems.map((item) => (
-              <div key={item.id} className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+              <div key={item.id} className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col">
                 {item.imageUrl && (
                   <div className="aspect-[4/3] overflow-hidden bg-white p-8">
-                    <img 
-                      src={item.imageUrl} 
+                    <img
+                      src={item.imageUrl}
                       alt={item.name}
                       className="h-full w-full object-contain"
                       onError={(e) => {
@@ -370,8 +370,8 @@ const Menu = () => {
                     />
                   </div>
                 )}
-                
-                <div className="p-6">
+
+                <div className="p-6 flex flex-col flex-1">
                   <div className="mb-4">
                     <div>
                       <h3 className="text-2xl font-medium text-[#111827]">{item.name}</h3>
@@ -390,11 +390,11 @@ const Menu = () => {
                     <p className="mb-4 text-sm leading-6 text-gray-600">{item.description}</p>
                   )}
 
-                  <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4 mt-auto">
                     <span className="text-sm text-gray-500">
                       Stock: {item.inventory?.quantityAvailable || 0}
                     </span>
-                    <button 
+                    <button
                       onClick={() => handleAddToCart(item)}
                       className="bg-[#ff9f32] px-4 py-2 font-bold text-white transition-colors hover:bg-[#252525] disabled:opacity-50"
                       disabled={!item.inventory || item.inventory.quantityAvailable === 0}

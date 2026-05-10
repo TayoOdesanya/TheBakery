@@ -100,7 +100,7 @@ function toMenuItem(row) {
     weightGrams: row.weight_grams ?? 500,
     ingredients: row.ingredients || null,
     allergens: row.allergens || null,
-    isSoldOut: row.is_available && qty <= 0,
+    isSoldOut: row.quantity_available !== null && Number(row.quantity_available) === 0,
     inventory: {
       quantityAvailable: qty,
       lowStockThreshold: row.low_stock_threshold ?? 5
