@@ -155,6 +155,41 @@ async function main() {
   await query('alter table bakery_otp_codes alter column user_id drop not null');
   await query('alter table bakery_otp_codes add column if not exists invite_id integer references bakery_invite_tokens(id) on delete cascade');
 
+  await query(`
+    create table if not exists bakery_shipping_rates (
+      id serial primary key,
+      tier text not null unique,
+      display_name text not null,
+      description text,
+      cutoff_hour integer not null default 14,
+      estimated_days text,
+      rates jsonb not null default '[]',
+      updated_at timestamptz not null default now()
+    )
+  `);
+
+  await query(`
+    insert into bakery_shipping_rates (tier, display_name, description, cutoff_hour, estimated_days, rates)
+    values
+      (
+        'standard',
+        'Standard Tracked (3–5 days)',
+        '3–5 working days',
+        14,
+        '3–5 working days',
+        '[{"max_grams":500,"price":3.99},{"max_grams":1000,"price":4.99},{"max_grams":2000,"price":5.99},{"max_grams":5000,"price":7.99},{"max_grams":999999,"price":9.99}]'
+      ),
+      (
+        'next_day',
+        'Express (1–2 days)',
+        '1–2 working days',
+        14,
+        '1–2 working days',
+        '[{"max_grams":500,"price":6.99},{"max_grams":1000,"price":7.99},{"max_grams":2000,"price":9.99},{"max_grams":5000,"price":12.99},{"max_grams":999999,"price":14.99}]'
+      )
+    on conflict (tier) do nothing
+  `);
+
   await query('create index if not exists bakery_menu_items_available_idx on bakery_menu_items(is_available)');
   await query('create index if not exists bakery_orders_status_idx on bakery_orders(status)');
   await query('create index if not exists bakery_orders_created_at_idx on bakery_orders(created_at)');

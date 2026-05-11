@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { Truck, Package, Clock, AlertTriangle, CheckCircle, RefreshCw, ChevronDown, ChevronUp, Printer } from 'lucide-react'
 import axios from 'axios'
 
@@ -13,9 +14,35 @@ function timeElapsed(createdAt) {
   return `${h}h ${mins % 60}m ago`
 }
 
-function shippingLabel(type) {
-  if (type === 'express') return 'Express (1–2 days)'
-  return 'Standard (3–5 days)'
+function shippingLabel(tier) {
+  if (tier === 'next_day') return 'Express (1–2 days)'
+  return 'Standard Tracked (3–5 days)'
+}
+
+function addWorkingDays(date, days) {
+  const result = new Date(date)
+  result.setHours(0, 0, 0, 0)
+  let added = 0
+  while (added < days) {
+    result.setDate(result.getDate() + 1)
+    const d = result.getDay()
+    if (d !== 0 && d !== 6) added++
+  }
+  return result
+}
+
+function getScheduledPostDate(order) {
+  const daysToAdd = order.shippingTier === 'next_day' ? 1 : 2
+  return addWorkingDays(new Date(order.createdAt), daysToAdd)
+}
+
+function getDeliveryPriority(order) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const postDate = getScheduledPostDate(order)
+  if (postDate < today) return 'overdue'
+  if (postDate.getTime() === today.getTime()) return 'due_today'
+  return 'upcoming'
 }
 
 function PrintLabelView({ order, onClose }) {
@@ -158,11 +185,14 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
   const [showPrintLabel, setShowPrintLabel] = useState(false)
   const [showDispatchModal, setShowDispatchModal] = useState(false)
   const isDelivery = order.fulfillmentType === 'delivery'
+  const isExpress = order.shippingTier === 'next_day'
+  const priority = order._priority
 
-  const borderColor = order.isOverdue
+  const borderColor = priority === 'overdue'
     ? 'border-l-red-500'
     : order.status === 'ready' ? 'border-l-green-500'
     : order.status === 'preparing' ? 'border-l-yellow-500'
+    : priority === 'due_today' ? 'border-l-orange-500'
     : 'border-l-blue-500'
 
   return (
@@ -190,9 +220,19 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
             <span className="text-xs text-gray-400 shrink-0">#{order.orderNumber}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {order.isOverdue && (
+            {priority === 'overdue' && (
               <span className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
                 <AlertTriangle className="h-3 w-3" /> OVERDUE
+              </span>
+            )}
+            {priority === 'due_today' && (
+              <span className="flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                <AlertTriangle className="h-3 w-3" /> DUE TODAY
+              </span>
+            )}
+            {isExpress && priority === 'upcoming' && (
+              <span className="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                EXPRESS
               </span>
             )}
             <span className="flex items-center gap-1 text-xs text-gray-500">
@@ -213,8 +253,8 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
                 {isDelivery ? 'Delivery' : 'Collection'}
               </span>
               {isDelivery && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                  {shippingLabel(order.shippingType)}
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isExpress ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {shippingLabel(order.shippingTier || order.shippingType)}
                 </span>
               )}
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -350,6 +390,30 @@ function HistoryCard({ order }) {
   )
 }
 
+const PRIORITY_ORDER = { overdue: 0, due_today: 1, upcoming: 2 }
+
+function PrioritySection({ label, labelColor, orders, onStatusUpdate, onDispatch, onNotesChange }) {
+  if (orders.length === 0) return null
+  return (
+    <div className="mb-4">
+      <p className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1 ${labelColor}`}>
+        {label} ({orders.length})
+      </p>
+      <div className="space-y-3">
+        {orders.map((order) => (
+          <OrderCard
+            key={order.id}
+            order={order}
+            onStatusUpdate={onStatusUpdate}
+            onDispatch={onDispatch}
+            onNotesChange={onNotesChange}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function KitchenDashboard() {
   const [orders, setOrders] = useState([])
   const [history, setHistory] = useState([])
@@ -459,16 +523,21 @@ export default function KitchenDashboard() {
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, kitchenNotes: notes } : o))
   }
 
-  const sortedOrders = [...orders].sort((a, b) => {
-    if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1
-    const aIsDelivery = a.fulfillmentType === 'delivery'
-    const bIsDelivery = b.fulfillmentType === 'delivery'
-    if (aIsDelivery !== bIsDelivery) return aIsDelivery ? -1 : 1
-    return new Date(a.createdAt) - new Date(b.createdAt)
-  })
+  const deliveryOrders = orders
+    .filter((o) => o.fulfillmentType === 'delivery')
+    .map((o) => ({ ...o, _priority: getDeliveryPriority(o) }))
+    .sort((a, b) => {
+      if (a._priority !== b._priority) return PRIORITY_ORDER[a._priority] - PRIORITY_ORDER[b._priority]
+      return new Date(a.createdAt) - new Date(b.createdAt)
+    })
 
-  const deliveryOrders = sortedOrders.filter((o) => o.fulfillmentType === 'delivery')
-  const collectionOrders = sortedOrders.filter((o) => o.fulfillmentType !== 'delivery')
+  const collectionOrders = orders
+    .filter((o) => o.fulfillmentType !== 'delivery')
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+
+  const overdueDeliveries = deliveryOrders.filter((o) => o._priority === 'overdue')
+  const dueTodayDeliveries = deliveryOrders.filter((o) => o._priority === 'due_today')
+  const upcomingDeliveries = deliveryOrders.filter((o) => o._priority === 'upcoming')
 
   if (loading) {
     return (
@@ -489,13 +558,21 @@ export default function KitchenDashboard() {
             </h1>
             <p className="text-xs text-gray-400">{orders.length} active</p>
           </div>
-          <button
-            onClick={() => fetchOrders(false)}
-            className="p-2 text-gray-400 hover:text-white rounded-lg"
-            aria-label="Refresh"
-          >
-            <RefreshCw className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/admin/dashboard"
+              className="text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              ← Admin
+            </Link>
+            <button
+              onClick={() => fetchOrders(false)}
+              className="p-2 text-gray-400 hover:text-white rounded-lg"
+              aria-label="Refresh"
+            >
+              <RefreshCw className="h-5 w-5" />
+            </button>
+          </div>
         </div>
         <div className="max-w-2xl mx-auto px-4 flex border-t border-white/10">
           {['active', 'history'].map((tab) => (
@@ -533,20 +610,33 @@ export default function KitchenDashboard() {
             <div className="space-y-6">
               {deliveryOrders.length > 0 && (
                 <section>
-                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                     <Truck className="h-3.5 w-3.5" /> Delivery ({deliveryOrders.length})
                   </h2>
-                  <div className="space-y-3">
-                    {deliveryOrders.map((order) => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onStatusUpdate={handleStatusUpdate}
-                        onDispatch={handleDispatch}
-                        onNotesChange={handleNotesChange}
-                      />
-                    ))}
-                  </div>
+                  <PrioritySection
+                    label="Overdue"
+                    labelColor="text-red-500"
+                    orders={overdueDeliveries}
+                    onStatusUpdate={handleStatusUpdate}
+                    onDispatch={handleDispatch}
+                    onNotesChange={handleNotesChange}
+                  />
+                  <PrioritySection
+                    label="Due Today"
+                    labelColor="text-orange-500"
+                    orders={dueTodayDeliveries}
+                    onStatusUpdate={handleStatusUpdate}
+                    onDispatch={handleDispatch}
+                    onNotesChange={handleNotesChange}
+                  />
+                  <PrioritySection
+                    label="Upcoming"
+                    labelColor="text-blue-400"
+                    orders={upcomingDeliveries}
+                    onStatusUpdate={handleStatusUpdate}
+                    onDispatch={handleDispatch}
+                    onNotesChange={handleNotesChange}
+                  />
                 </section>
               )}
               {collectionOrders.length > 0 && (

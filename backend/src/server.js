@@ -210,10 +210,9 @@ async function createPendingOrder(client, payload) {
   }
 
   if (fulfillmentType === 'delivery') {
-    if (!deliveryName || !deliveryAddressLine1 || !deliveryCity || !deliveryPostcode) {
+    if (!resolvedAddress?.line1 || !resolvedAddress?.city || !resolvedAddress?.postcode) {
       throw new Error('Full delivery address is required');
     }
-    if (!shippingTier) throw new Error('Shipping tier is required for delivery');
   }
 
   const { serviceFee, subtotalAmount, totalAmount: itemsTotal } = await calculateOrderItems(client, items);
@@ -282,12 +281,13 @@ async function createPendingOrder(client, payload) {
       stripe_payment_intent_id,
       fulfillment_type,
       shipping_type,
+      shipping_tier,
       delivery_address_line1,
       delivery_address_line2,
       delivery_city,
       delivery_postcode
     )
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     returning *
   `, [
     Number(tableNumber) || 0,
@@ -301,6 +301,7 @@ async function createPendingOrder(client, payload) {
     paymentIntent?.id || null,
     fulfillmentType,
     resolvedShippingType,
+    shippingTier || null,
     resolvedAddress?.line1 || null,
     resolvedAddress?.line2 || null,
     resolvedAddress?.city || null,
@@ -434,38 +435,6 @@ app.get('/api/menu/categories', async (req, res, next) => {
   }
 });
 
-app.get('/api/shipping/rates', (req, res) => {
-  res.json({
-    rates: [
-      {
-        tier: 'standard',
-        display_name: 'Standard Delivery',
-        estimated_days: '3–5 working days',
-        cutoff_hour: 14,
-        rates: [
-          { max_grams: 500,  price: 3.99 },
-          { max_grams: 1000, price: 4.99 },
-          { max_grams: 2000, price: 5.99 },
-          { max_grams: 5000, price: 7.99 },
-          { max_grams: 99999, price: 9.99 },
-        ],
-      },
-      {
-        tier: 'express',
-        display_name: 'Express Delivery',
-        estimated_days: '1–2 working days',
-        cutoff_hour: 12,
-        rates: [
-          { max_grams: 500,  price: 6.99 },
-          { max_grams: 1000, price: 8.99 },
-          { max_grams: 2000, price: 10.99 },
-          { max_grams: 5000, price: 13.99 },
-          { max_grams: 99999, price: 16.99 },
-        ],
-      },
-    ],
-  });
-});
 
 app.get('/api/menu', async (req, res, next) => {
   try {
@@ -1138,11 +1107,12 @@ function formatOrder(row) {
   const createdAt = row.created_at;
   const isOverdue = (() => {
     if (row.dispatched_at || row.status === 'delivered') return false;
-    if ((row.shipping_type || 'standard') !== 'standard') return false;
     if (row.fulfillment_type !== 'delivery') return false;
     const ageMs = Date.now() - new Date(createdAt).getTime();
     const workingDayMs = 24 * 60 * 60 * 1000;
-    return ageMs > 2 * workingDayMs;
+    const tier = row.shipping_tier || row.shipping_type || 'standard';
+    const overdueAfterDays = tier === 'next_day' ? 1 : 2;
+    return ageMs > overdueAfterDays * workingDayMs;
   })();
 
   return {
@@ -1156,6 +1126,7 @@ function formatOrder(row) {
     status: row.status,
     fulfillmentType: row.fulfillment_type || 'collection',
     shippingType: row.shipping_type || 'standard',
+    shippingTier: row.shipping_tier || null,
     totalAmount: Number(row.total_amount),
     trackingNumber: row.tracking_number || null,
     kitchenNotes: row.kitchen_notes || null,
