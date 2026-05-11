@@ -39,6 +39,27 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(staticPath));
 
+async function initDb() {
+  await query(`
+    create table if not exists bakery_collection_schedule (
+      day_of_week integer primary key check (day_of_week between 0 and 6),
+      open_time time not null,
+      close_time time not null,
+      is_active boolean not null default true
+    )
+  `);
+  await query(`
+    create table if not exists bakery_blocked_dates (
+      id serial primary key,
+      blocked_date date not null unique,
+      reason text
+    )
+  `);
+  await query(`alter table bakery_orders add column if not exists collection_date date`);
+}
+
+initDb().catch((e) => console.error('[initDb]', e.message));
+
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -192,6 +213,7 @@ async function createPendingOrder(client, payload) {
     shippingType, shippingTier,
     deliveryAddress,
     deliveryAddressLine1, deliveryAddressLine2, deliveryCity, deliveryPostcode,
+    collectionDate,
   } = payload;
 
   const resolvedShippingType = shippingType || shippingTier || 'standard';
@@ -285,9 +307,10 @@ async function createPendingOrder(client, payload) {
       delivery_address_line1,
       delivery_address_line2,
       delivery_city,
-      delivery_postcode
+      delivery_postcode,
+      collection_date
     )
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     returning *
   `, [
     Number(tableNumber) || 0,
@@ -306,6 +329,7 @@ async function createPendingOrder(client, payload) {
     resolvedAddress?.line2 || null,
     resolvedAddress?.city || null,
     resolvedAddress?.postcode || null,
+    fulfillmentType === 'collection' && collectionDate ? collectionDate : null,
   ]);
 
   return { order: orderResult.rows[0], clientSecret: paymentIntent?.client_secret || null };
@@ -455,6 +479,34 @@ app.get('/api/menu', async (req, res, next) => {
     `, params);
 
     res.json(result.rows.map(toMenuItem));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/menu/:id', async (req, res, next) => {
+  try {
+    const result = await query(`
+      select mi.*, i.quantity_available, i.low_stock_threshold
+      from bakery_menu_items mi
+      left join bakery_inventory i on i.menu_item_id = mi.id
+      where mi.id = $1 and mi.is_available = true
+    `, [req.params.id]);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+
+    const item = toMenuItem(result.rows[0]);
+
+    const related = await query(`
+      select mi.*, i.quantity_available, i.low_stock_threshold
+      from bakery_menu_items mi
+      left join bakery_inventory i on i.menu_item_id = mi.id
+      where mi.category = $1 and mi.id <> $2 and mi.is_available = true
+      order by random()
+      limit 4
+    `, [item.category, item.id]);
+
+    res.json({ item, related: related.rows.map(toMenuItem) });
   } catch (error) {
     next(error);
   }
@@ -1090,6 +1142,114 @@ app.patch('/api/admin/users/:id/status', requireAuth, requireAdmin, async (req, 
   }
 });
 
+// ── Collection schedule (public availability) ─────────────────────────────
+
+app.get('/api/collection-availability', async (req, res, next) => {
+  try {
+    const weeksAhead = Math.min(Number(req.query.weeks) || 8, 16);
+    const [scheduleRes, blockedRes] = await Promise.all([
+      query('select day_of_week, open_time, close_time from bakery_collection_schedule where is_active = true order by day_of_week'),
+      query('select blocked_date from bakery_blocked_dates'),
+    ]);
+
+    const schedule = scheduleRes.rows;
+    const blockedSet = new Set(blockedRes.rows.map((r) => r.blocked_date.toISOString().slice(0, 10)));
+
+    const available = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 1; i <= weeksAhead * 7; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      const dow = d.getDay();
+      const iso = d.toISOString().slice(0, 10);
+      const slot = schedule.find((s) => s.day_of_week === dow);
+      if (slot && !blockedSet.has(iso)) {
+        available.push({
+          date: iso,
+          openTime: slot.open_time.slice(0, 5),
+          closeTime: slot.close_time.slice(0, 5),
+        });
+      }
+    }
+
+    res.json({ available });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ── Admin: collection schedule management ────────────────────────────────
+
+app.get('/api/admin/collection-schedule', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query('select * from bakery_collection_schedule order by day_of_week');
+    res.json({ schedule: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/collection-schedule', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { schedule } = req.body;
+    if (!Array.isArray(schedule)) return res.status(400).json({ error: 'schedule must be an array' });
+
+    for (const row of schedule) {
+      const { dayOfWeek, openTime, closeTime, isActive } = row;
+      if (dayOfWeek < 0 || dayOfWeek > 6) continue;
+      await query(`
+        insert into bakery_collection_schedule (day_of_week, open_time, close_time, is_active)
+        values ($1, $2, $3, $4)
+        on conflict (day_of_week) do update
+          set open_time = excluded.open_time,
+              close_time = excluded.close_time,
+              is_active = excluded.is_active
+      `, [dayOfWeek, openTime, closeTime, isActive]);
+    }
+
+    const result = await query('select * from bakery_collection_schedule order by day_of_week');
+    res.json({ schedule: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/admin/blocked-dates', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await query('select * from bakery_blocked_dates order by blocked_date asc');
+    res.json({ blockedDates: result.rows.map((r) => ({ id: r.id, date: r.blocked_date.toISOString().slice(0, 10), reason: r.reason || '' })) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/blocked-dates', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { date, reason } = req.body;
+    if (!date) return res.status(400).json({ error: 'date is required' });
+    const result = await query(
+      'insert into bakery_blocked_dates (blocked_date, reason) values ($1, $2) on conflict (blocked_date) do nothing returning *',
+      [date, reason || null]
+    );
+    if (!result.rows[0]) return res.status(409).json({ error: 'Date already blocked' });
+    const row = result.rows[0];
+    res.status(201).json({ blockedDate: { id: row.id, date: row.blocked_date.toISOString().slice(0, 10), reason: row.reason || '' } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/blocked-dates/:id', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    await query('delete from bakery_blocked_dates where id = $1', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Route not found' });
@@ -1103,16 +1263,29 @@ app.get('*', (req, res, next) => {
   next();
 });
 
+function addWorkingDays(date, days) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    const d = result.getDay();
+    if (d !== 0 && d !== 6) added++;
+  }
+  return result;
+}
+
 function formatOrder(row) {
   const createdAt = row.created_at;
   const isOverdue = (() => {
     if (row.dispatched_at || row.status === 'delivered') return false;
     if (row.fulfillment_type !== 'delivery') return false;
-    const ageMs = Date.now() - new Date(createdAt).getTime();
-    const workingDayMs = 24 * 60 * 60 * 1000;
     const tier = row.shipping_tier || row.shipping_type || 'standard';
-    const overdueAfterDays = tier === 'next_day' ? 1 : 2;
-    return ageMs > overdueAfterDays * workingDayMs;
+    const daysToAdd = tier === 'next_day' ? 1 : 2;
+    const scheduledPostDate = addWorkingDays(new Date(createdAt), daysToAdd);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return scheduledPostDate < today;
   })();
 
   return {
@@ -1132,6 +1305,7 @@ function formatOrder(row) {
     kitchenNotes: row.kitchen_notes || null,
     dispatchedAt: row.dispatched_at || null,
     alertTriggered: row.alert_triggered || false,
+    collectionDate: row.collection_date || null,
     isOverdue,
     deliveryAddress: row.delivery_address_line1 ? {
       name: row.customer_name,

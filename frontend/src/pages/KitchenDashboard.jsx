@@ -32,7 +32,8 @@ function addWorkingDays(date, days) {
 }
 
 function getScheduledPostDate(order) {
-  const daysToAdd = order.shippingTier === 'next_day' ? 1 : 2
+  const tier = order.shippingTier || order.shippingType
+  const daysToAdd = tier === 'next_day' ? 1 : 2
   return addWorkingDays(new Date(order.createdAt), daysToAdd)
 }
 
@@ -494,7 +495,7 @@ function AlertRow({ order, priority, onDismiss, onAction }) {
 export default function KitchenDashboard() {
   const [orders, setOrders] = useState([])
   const [history, setHistory] = useState([])
-  const [activeTab, setActiveTab] = useState('active')
+  const [activeTab, setActiveTab] = useState('delivery')
   const [loading, setLoading] = useState(true)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -767,17 +768,21 @@ export default function KitchenDashboard() {
           </div>
         </div>
         <div className="max-w-2xl mx-auto px-4 flex border-t border-white/10">
-          {['active', 'history'].map((tab) => (
+          {[
+            { id: 'delivery', label: `Delivery${deliveryOrders.length > 0 ? ` (${deliveryOrders.length})` : ''}` },
+            { id: 'collection', label: `Collection${collectionOrders.length > 0 ? ` (${collectionOrders.length})` : ''}` },
+            { id: 'history', label: 'History' },
+          ].map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2.5 text-sm font-medium capitalize transition-colors ${
-                activeTab === tab
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === tab.id
                   ? 'text-white border-b-2 border-white'
                   : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -791,64 +796,68 @@ export default function KitchenDashboard() {
           </div>
         )}
 
-        {activeTab === 'active' && (
-          orders.length === 0 ? (
+        {activeTab === 'delivery' && (
+          deliveryOrders.length === 0 ? (
             <div className="text-center py-20">
               <CheckCircle className="h-14 w-14 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">All caught up</p>
-              <p className="text-sm text-gray-400">No active orders right now</p>
+              <p className="text-gray-500 font-medium">No active postal orders</p>
+              <p className="text-sm text-gray-400">Delivery orders will appear here</p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {deliveryOrders.length > 0 && (
-                <section>
-                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                    <Truck className="h-3.5 w-3.5" /> Delivery ({deliveryOrders.length})
-                  </h2>
-                  <PrioritySection
-                    label="Overdue"
-                    labelColor="text-red-500"
-                    orders={overdueDeliveries}
+            <div className="space-y-4">
+              <PrioritySection
+                label="Overdue"
+                labelColor="text-red-500"
+                orders={overdueDeliveries}
+                onStatusUpdate={handleStatusUpdate}
+                onDispatch={handleDispatch}
+                onNotesChange={handleNotesChange}
+              />
+              <PrioritySection
+                label="Due Today"
+                labelColor="text-orange-500"
+                orders={dueTodayDeliveries}
+                onStatusUpdate={handleStatusUpdate}
+                onDispatch={handleDispatch}
+                onNotesChange={handleNotesChange}
+              />
+              <PrioritySection
+                label="Upcoming"
+                labelColor="text-blue-400"
+                orders={upcomingDeliveries}
+                onStatusUpdate={handleStatusUpdate}
+                onDispatch={handleDispatch}
+                onNotesChange={handleNotesChange}
+              />
+            </div>
+          )
+        )}
+
+        {activeTab === 'collection' && (
+          collectionOrders.length === 0 ? (
+            <div className="text-center py-20">
+              <CheckCircle className="h-14 w-14 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No collection orders</p>
+              <p className="text-sm text-gray-400">Collection orders will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {collectionOrders.map((order) => (
+                <div key={order.id}>
+                  {order.collectionDate && (
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                      <Package className="h-3 w-3" />
+                      Collection: {new Date(order.collectionDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </p>
+                  )}
+                  <OrderCard
+                    order={order}
                     onStatusUpdate={handleStatusUpdate}
                     onDispatch={handleDispatch}
                     onNotesChange={handleNotesChange}
                   />
-                  <PrioritySection
-                    label="Due Today"
-                    labelColor="text-orange-500"
-                    orders={dueTodayDeliveries}
-                    onStatusUpdate={handleStatusUpdate}
-                    onDispatch={handleDispatch}
-                    onNotesChange={handleNotesChange}
-                  />
-                  <PrioritySection
-                    label="Upcoming"
-                    labelColor="text-blue-400"
-                    orders={upcomingDeliveries}
-                    onStatusUpdate={handleStatusUpdate}
-                    onDispatch={handleDispatch}
-                    onNotesChange={handleNotesChange}
-                  />
-                </section>
-              )}
-              {collectionOrders.length > 0 && (
-                <section>
-                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5" /> Collection ({collectionOrders.length})
-                  </h2>
-                  <div className="space-y-3">
-                    {collectionOrders.map((order) => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onStatusUpdate={handleStatusUpdate}
-                        onDispatch={handleDispatch}
-                        onNotesChange={handleNotesChange}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
+                </div>
+              ))}
             </div>
           )
         )}

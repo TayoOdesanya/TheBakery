@@ -22,6 +22,7 @@ export const CartProvider = ({ children }) => {
     postcode: ''
   })
   const [specialInstructions, setSpecialInstructions] = useState('')
+  const [collectionDate, setCollectionDate] = useState('')
 
   const addItem = (menuItem, quantity = 1) => {
     setItems((current) => {
@@ -49,6 +50,7 @@ export const CartProvider = ({ children }) => {
     setShippingCost(0)
     setDeliveryDetails({ name: '', phone: '', addressLine1: '', addressLine2: '', city: '', postcode: '' })
     setSpecialInstructions('')
+    setCollectionDate('')
   }
 
   const getItemCount = () => items.reduce((t, i) => t + i.quantity, 0)
@@ -66,6 +68,7 @@ export const CartProvider = ({ children }) => {
       shippingCost, setShippingCost,
       deliveryDetails, setDeliveryDetails,
       specialInstructions, setSpecialInstructions,
+      collectionDate, setCollectionDate,
       addItem, updateQuantity, removeItem, clearCart,
       getItemCount, getSubtotal, getTotal, getTotalWeight,
       getCartForCheckout,

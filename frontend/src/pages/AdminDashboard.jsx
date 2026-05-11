@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
-import { Plus, Edit2, Trash2, Package, LogOut, TrendingUp, Mail, Copy, UserX, UserCheck, Link, ChefHat } from 'lucide-react'
+import { Plus, Edit2, Trash2, Package, LogOut, TrendingUp, Mail, Copy, UserX, UserCheck, Link, ChefHat, Calendar, X } from 'lucide-react'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
@@ -38,6 +38,20 @@ const AdminDashboard = () => {
   const [buyersLoading, setBuyersLoading] = useState(false)
   const [togglingUserId, setTogglingUserId] = useState(null)
 
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const defaultSchedule = DAY_NAMES.map((_, i) => ({
+    dayOfWeek: i,
+    openTime: '09:00',
+    closeTime: '17:00',
+    isActive: i >= 1 && i <= 5,
+  }))
+  const [schedule, setSchedule] = useState(defaultSchedule)
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [scheduleSaving, setScheduleSaving] = useState(false)
+  const [blockedDates, setBlockedDates] = useState([])
+  const [newBlockedDate, setNewBlockedDate] = useState('')
+  const [newBlockedReason, setNewBlockedReason] = useState('')
+
   const navigate = useNavigate()
   const { token, logout } = useAuth()
 
@@ -50,13 +64,71 @@ const AdminDashboard = () => {
   }, [token])
 
   useEffect(() => {
-    if (activeTab === 'invites' && token) {
-      fetchInvites()
-    }
-    if (activeTab === 'buyers' && token) {
-      fetchBuyers()
-    }
+    if (activeTab === 'invites' && token) fetchInvites()
+    if (activeTab === 'buyers' && token) fetchBuyers()
+    if (activeTab === 'collection' && token) fetchCollectionSchedule()
   }, [activeTab, token])
+
+  const fetchCollectionSchedule = async () => {
+    setScheduleLoading(true)
+    try {
+      const [schedRes, blockedRes] = await Promise.all([
+        axios.get('/api/admin/collection-schedule'),
+        axios.get('/api/admin/blocked-dates'),
+      ])
+      if (schedRes.data.schedule.length > 0) {
+        const merged = defaultSchedule.map((def) => {
+          const saved = schedRes.data.schedule.find((s) => s.day_of_week === def.dayOfWeek)
+          return saved
+            ? { dayOfWeek: saved.day_of_week, openTime: saved.open_time.slice(0, 5), closeTime: saved.close_time.slice(0, 5), isActive: saved.is_active }
+            : def
+        })
+        setSchedule(merged)
+      }
+      setBlockedDates(blockedRes.data.blockedDates)
+    } catch {
+      // leave defaults
+    } finally {
+      setScheduleLoading(false)
+    }
+  }
+
+  const handleSaveSchedule = async () => {
+    setScheduleSaving(true)
+    try {
+      await axios.put('/api/admin/collection-schedule', { schedule })
+      alert('Collection hours saved.')
+    } catch {
+      alert('Failed to save schedule.')
+    } finally {
+      setScheduleSaving(false)
+    }
+  }
+
+  const handleAddBlockedDate = async () => {
+    if (!newBlockedDate) return
+    try {
+      const res = await axios.post('/api/admin/blocked-dates', { date: newBlockedDate, reason: newBlockedReason.trim() || undefined })
+      setBlockedDates((prev) => [...prev, res.data.blockedDate].sort((a, b) => a.date.localeCompare(b.date)))
+      setNewBlockedDate('')
+      setNewBlockedReason('')
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to block date.')
+    }
+  }
+
+  const handleRemoveBlockedDate = async (id) => {
+    try {
+      await axios.delete(`/api/admin/blocked-dates/${id}`)
+      setBlockedDates((prev) => prev.filter((d) => d.id !== id))
+    } catch {
+      alert('Failed to remove blocked date.')
+    }
+  }
+
+  const updateScheduleRow = (dayOfWeek, field, value) => {
+    setSchedule((prev) => prev.map((row) => row.dayOfWeek === dayOfWeek ? { ...row, [field]: value } : row))
+  }
 
   const fetchData = async () => {
     try {
@@ -322,6 +394,7 @@ const AdminDashboard = () => {
         <div className="flex border-b border-gray-200 mb-6">
           {[
             { id: 'menu', label: 'Menu Management' },
+            { id: 'collection', label: 'Collection Hours' },
             { id: 'invites', label: 'Invite Buyers' },
             { id: 'buyers', label: 'Manage Buyers' },
           ].map((tab) => (
@@ -378,6 +451,126 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Collection Hours Tab */}
+        {activeTab === 'collection' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-blue-600" />
+                  Weekly Collection Hours
+                </h2>
+                <button
+                  onClick={handleSaveSchedule}
+                  disabled={scheduleSaving}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  {scheduleSaving
+                    ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    : null}
+                  Save Hours
+                </button>
+              </div>
+
+              {scheduleLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {schedule.map((row) => (
+                    <div key={row.dayOfWeek} className="py-4 flex items-center gap-4 flex-wrap">
+                      <div className="w-28">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={row.isActive}
+                            onChange={(e) => updateScheduleRow(row.dayOfWeek, 'isActive', e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                          />
+                          <span className={`text-sm font-medium ${row.isActive ? 'text-gray-900' : 'text-gray-400'}`}>
+                            {DAY_NAMES[row.dayOfWeek]}
+                          </span>
+                        </label>
+                      </div>
+                      <div className={`flex items-center gap-2 transition-opacity ${row.isActive ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                        <input
+                          type="time"
+                          value={row.openTime}
+                          onChange={(e) => updateScheduleRow(row.dayOfWeek, 'openTime', e.target.value)}
+                          className="input-field w-32 text-sm"
+                        />
+                        <span className="text-gray-400 text-sm">to</span>
+                        <input
+                          type="time"
+                          value={row.closeTime}
+                          onChange={(e) => updateScheduleRow(row.dayOfWeek, 'closeTime', e.target.value)}
+                          className="input-field w-32 text-sm"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Blocked dates */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold mb-4">Blocked Dates</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Block specific dates (bank holidays, days off) — they won't appear as available for customers even if within normal hours.
+              </p>
+              <div className="flex flex-wrap gap-3 mb-6">
+                <input
+                  type="date"
+                  value={newBlockedDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setNewBlockedDate(e.target.value)}
+                  className="input-field w-44"
+                />
+                <input
+                  type="text"
+                  value={newBlockedReason}
+                  onChange={(e) => setNewBlockedReason(e.target.value)}
+                  placeholder="Reason (optional)"
+                  className="input-field flex-1 min-w-[160px]"
+                />
+                <button
+                  onClick={handleAddBlockedDate}
+                  disabled={!newBlockedDate}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  Block Date
+                </button>
+              </div>
+
+              {blockedDates.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No blocked dates.</p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {blockedDates.map((d) => (
+                    <div key={d.id} className="py-3 flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {new Date(d.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                        {d.reason && <p className="text-sm text-gray-500">{d.reason}</p>}
+                      </div>
+                      <button
+                        onClick={() => handleRemoveBlockedDate(d.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                        title="Remove"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

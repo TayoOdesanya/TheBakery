@@ -15,6 +15,7 @@ import TermsAndConditions from './pages/TermsAndConditions'
 import CookiePolicy from './pages/CookiePolicy'
 import AllergenInfo from './pages/AllergenInfo'
 import ReturnsPolicy from './pages/ReturnsPolicy'
+import ItemDetail from './pages/ItemDetail'
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
           {/* Buyer routes — require login */}
           <Route path="/" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
           <Route path="/menu" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
+          <Route path="/menu/:id" element={<ProtectedRoute><ItemDetail /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           <Route path="/order-success" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
 

@@ -14,12 +14,14 @@ const Checkout = () => {
     shippingCost, setShippingCost,
     deliveryDetails, setDeliveryDetails,
     specialInstructions,
+    collectionDate, setCollectionDate,
     getSubtotal, getTotal, getTotalWeight, getCartForCheckout, clearCart
   } = useCart()
   const { user } = useAuth()
 
   const [shippingRates, setShippingRates] = useState([])
   const [contactName, setContactName] = useState('')
+  const [availableDates, setAvailableDates] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -32,6 +34,11 @@ const Checkout = () => {
       axios.get('/api/shipping/rates')
         .then(res => setShippingRates(res.data.rates || []))
         .catch(() => setError('Failed to load shipping options. Please go back and try again.'))
+    }
+    if (fulfillmentType === 'collection') {
+      axios.get('/api/collection-availability')
+        .then(res => setAvailableDates(res.data.available || []))
+        .catch(() => setError('Failed to load collection dates. Please go back and try again.'))
     }
   }, [fulfillmentType])
 
@@ -55,6 +62,10 @@ const Checkout = () => {
       setError('Please enter your name for collection')
       return
     }
+    if (fulfillmentType === 'collection' && availableDates.length > 0 && !collectionDate) {
+      setError('Please select a collection date')
+      return
+    }
 
     if (fulfillmentType === 'delivery') {
       if (!shippingTier) { setError('Please select a shipping option'); return }
@@ -75,6 +86,7 @@ const Checkout = () => {
         customerName: fulfillmentType === 'delivery' ? deliveryDetails.name : contactName,
         customerPhone: fulfillmentType === 'delivery' ? deliveryDetails.phone : (user?.phone || ''),
         specialInstructions: specialInstructions.trim() || null,
+        collectionDate: fulfillmentType === 'collection' ? collectionDate || null : null,
       }
 
       if (fulfillmentType === 'delivery') {
@@ -110,7 +122,10 @@ const Checkout = () => {
   const subtotal = getSubtotal()
   const total = getTotal()
   const isDelivery = fulfillmentType === 'delivery'
-  const canSubmit = !loading && (isDelivery ? !!shippingTier : true)
+  const canSubmit = !loading && (isDelivery
+    ? !!shippingTier
+    : (availableDates.length === 0 || !!collectionDate)
+  )
 
   if (items.length === 0) {
     return (
@@ -340,27 +355,76 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* Collection contact */}
+            {/* Collection details */}
             {!isDelivery && (
-              <div>
-                <h2 className="text-xl font-semibold mb-4">Your Details</h2>
-                <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name for collection *</label>
-                    <input
-                      type="text"
-                      required
-                      value={contactName}
-                      onChange={e => setContactName(e.target.value)}
-                      className="input-field"
-                      placeholder="Your name"
-                    />
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold mb-4">Your Details</h2>
+                  <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name for collection *</label>
+                      <input
+                        type="text"
+                        required
+                        value={contactName}
+                        onChange={e => setContactName(e.target.value)}
+                        className="input-field"
+                        placeholder="Your name"
+                      />
+                    </div>
+                    {(user?.phone || user?.email) && (
+                      <p className="text-sm text-gray-500">
+                        We'll reach you at {user.phone || user.email} if needed.
+                      </p>
+                    )}
                   </div>
-                  {(user?.phone || user?.email) && (
-                    <p className="text-sm text-gray-500">
-                      We'll reach you at {user.phone || user.email} if needed.
-                    </p>
-                  )}
+                </div>
+
+                {/* Collection date picker */}
+                <div>
+                  <h2 className="text-xl font-semibold mb-4">Collection Date</h2>
+                  <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
+                    {availableDates.length === 0 ? (
+                      <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                        No collection dates are currently available. Please check back soon or contact us.
+                      </p>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Select a date *</label>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {availableDates.slice(0, 18).map((slot) => {
+                              const label = new Date(slot.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+                              const selected = collectionDate === slot.date
+                              return (
+                                <button
+                                  key={slot.date}
+                                  type="button"
+                                  onClick={() => setCollectionDate(slot.date)}
+                                  className={`p-3 text-sm border-2 rounded-lg transition-colors text-left ${
+                                    selected
+                                      ? 'border-amber-500 bg-amber-50 text-amber-900 font-semibold'
+                                      : 'border-gray-200 hover:border-amber-300 text-gray-700'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                        {collectionDate && (() => {
+                          const slot = availableDates.find((s) => s.date === collectionDate)
+                          return slot ? (
+                            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                              <Clock className="h-4 w-4 shrink-0" />
+                              Collection window: <span className="font-semibold">{slot.openTime} – {slot.closeTime}</span>
+                            </div>
+                          ) : null
+                        })()}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
