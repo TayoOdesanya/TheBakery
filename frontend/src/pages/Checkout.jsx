@@ -4,6 +4,7 @@ import axios from 'axios'
 import { ShoppingCart, Truck, Package, AlertCircle, CreditCard, Clock, ChefHat } from 'lucide-react'
 import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
+import Footer from '../components/Footer'
 
 const Checkout = () => {
   const navigate = useNavigate()
@@ -123,6 +124,7 @@ const Checkout = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -389,6 +391,8 @@ const Checkout = () => {
       </div>
     </div>
     </div>
+    <Footer />
+    </>
   )
 }
 

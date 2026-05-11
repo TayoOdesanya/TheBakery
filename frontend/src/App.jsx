@@ -10,6 +10,11 @@ import KitchenDashboard from './pages/KitchenDashboard'
 import Checkout from './pages/Checkout'
 import OrderSuccess from './pages/OrderSuccess'
 import RegisterPage from './pages/RegisterPage'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsAndConditions from './pages/TermsAndConditions'
+import CookiePolicy from './pages/CookiePolicy'
+import AllergenInfo from './pages/AllergenInfo'
+import ReturnsPolicy from './pages/ReturnsPolicy'
 
 function App() {
   return (
@@ -20,6 +25,11 @@ function App() {
           <Route path="/login" element={<BuyerLoginPage />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/register/:token" element={<RegisterPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
+          <Route path="/cookie-policy" element={<CookiePolicy />} />
+          <Route path="/allergens" element={<AllergenInfo />} />
+          <Route path="/returns" element={<ReturnsPolicy />} />
 
           {/* Buyer routes — require login */}
           <Route path="/" element={<ProtectedRoute><Menu /></ProtectedRoute>} />

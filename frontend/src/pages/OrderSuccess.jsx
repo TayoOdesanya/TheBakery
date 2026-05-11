@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CheckCircle, Clock, Truck, Package, MapPin } from 'lucide-react'
+import Footer from '../components/Footer'
 
 const OrderSuccess = () => {
   const location = useLocation()
@@ -26,6 +27,7 @@ const OrderSuccess = () => {
   }
 
   return (
+    <>
     <div className="max-w-3xl mx-auto px-4 py-12">
       <div className="bg-white rounded-lg shadow-lg p-8 text-center">
         <div className="flex justify-center mb-6">
@@ -141,6 +143,8 @@ const OrderSuccess = () => {
         </div>
       </div>
     </div>
+    <Footer />
+    </>
   )
 }
 

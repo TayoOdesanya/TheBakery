@@ -3,6 +3,7 @@ import { ShoppingCart, Trash2, Plus, Minus, Coffee, Star } from 'lucide-react'
 import axios from 'axios'
 import { useCart } from '../context/CartContext'
 import { useNavigate } from 'react-router-dom'
+import Footer from '../components/Footer'
 
 const Menu = () => {
   const [menuItems, setMenuItems] = useState([])
@@ -109,6 +110,7 @@ const Menu = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-[#f5f7f2] text-[#252525]">
       {/* Header with Cart */}
       <header className="sticky top-0 z-50 border-b border-black/5 bg-white/90 backdrop-blur">
@@ -551,6 +553,8 @@ const Menu = () => {
         </div>
       )}
     </div>
+    <Footer />
+    </>
   )
 }
 

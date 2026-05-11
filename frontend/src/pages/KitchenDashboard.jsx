@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Truck, Package, Clock, AlertTriangle, CheckCircle, RefreshCw, ChevronDown, ChevronUp, Printer } from 'lucide-react'
+import { Truck, Package, Clock, AlertTriangle, CheckCircle, RefreshCw, ChevronDown, ChevronUp, Printer, Bell, X } from 'lucide-react'
 import axios from 'axios'
 
 const POLL_INTERVAL = 5000
@@ -206,7 +206,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
         />
       )}
 
-      <div className={`bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 ${borderColor} overflow-hidden`}>
+      <div id={`order-${order.id}`} className={`bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 ${borderColor} overflow-hidden`}>
         {/* Header row */}
         <div
           className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
@@ -414,6 +414,83 @@ function PrioritySection({ label, labelColor, orders, onStatusUpdate, onDispatch
   )
 }
 
+function AlertRow({ order, priority, onDismiss, onAction }) {
+  const [swipeX, setSwipeX] = useState(0)
+  const [swiping, setSwiping] = useState(false)
+  const touchStartRef = useRef(null)
+  const isOverdue = priority === 'overdue'
+
+  const handleTouchStart = (e) => {
+    touchStartRef.current = e.touches[0].clientX
+    setSwiping(true)
+  }
+  const handleTouchMove = (e) => {
+    if (touchStartRef.current === null) return
+    const dx = e.touches[0].clientX - touchStartRef.current
+    if (dx < 0) setSwipeX(Math.max(dx, -120))
+  }
+  const handleTouchEnd = () => {
+    if (swipeX < -60) {
+      onDismiss()
+    } else {
+      setSwipeX(0)
+    }
+    setSwiping(false)
+    touchStartRef.current = null
+  }
+
+  return (
+    <div className="relative overflow-hidden">
+      {/* Dismiss layer behind the row */}
+      <div className="absolute inset-y-0 right-0 flex items-center justify-end px-5 bg-red-500 min-w-full">
+        <span className="text-white text-xs font-bold uppercase tracking-wide">Dismiss</span>
+      </div>
+
+      {/* Swipeable row */}
+      <div
+        style={{
+          transform: `translateX(${swipeX}px)`,
+          transition: swiping ? 'none' : 'transform 0.25s ease',
+        }}
+        className={`relative flex items-start gap-0 ${isOverdue ? 'bg-red-50' : 'bg-orange-50'}`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Tap area — goes to order */}
+        <button
+          className="flex-1 flex items-start gap-2 px-4 py-3 text-left min-w-0"
+          onClick={onAction}
+        >
+          {isOverdue
+            ? <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+            : <Clock className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />}
+          <div className="min-w-0">
+            <p className={`text-sm font-semibold truncate ${isOverdue ? 'text-red-700' : 'text-orange-700'}`}>
+              {order.customerName}
+            </p>
+            <p className={`text-xs ${isOverdue ? 'text-red-500' : 'text-orange-500'}`}>
+              #{order.orderNumber} · {shippingLabel(order.shippingTier || order.shippingType)}
+            </p>
+            <p className={`text-xs font-bold mt-0.5 uppercase tracking-wide ${isOverdue ? 'text-red-600' : 'text-orange-600'}`}>
+              {isOverdue ? 'Overdue — should have been posted' : 'Post today'}
+            </p>
+          </div>
+        </button>
+
+        {/* X dismiss button */}
+        <button
+          onClick={onDismiss}
+          className={`shrink-0 p-3 self-stretch flex items-center ${isOverdue ? 'text-red-300 hover:text-red-600' : 'text-orange-300 hover:text-orange-600'} transition-colors`}
+          aria-label="Dismiss alert"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function KitchenDashboard() {
   const [orders, setOrders] = useState([])
   const [history, setHistory] = useState([])
@@ -422,6 +499,8 @@ export default function KitchenDashboard() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [error, setError] = useState(null)
   const [newOrderAlert, setNewOrderAlert] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [dismissedAlertIds, setDismissedAlertIds] = useState(new Set())
   const prevOrderIdsRef = useRef(null)
   const audioCtxRef = useRef(null)
   const mountedRef = useRef(true)
@@ -547,8 +626,111 @@ export default function KitchenDashboard() {
     )
   }
 
+  const dismissAlert = (id) => setDismissedAlertIds((prev) => new Set([...prev, id]))
+  const dismissAll = () => setDismissedAlertIds((prev) => new Set([...prev, ...visibleOverdue.map((o) => o.id), ...visibleDueToday.map((o) => o.id)]))
+
+  const visibleOverdue = overdueDeliveries.filter((o) => !dismissedAlertIds.has(o.id))
+  const visibleDueToday = dueTodayDeliveries.filter((o) => !dismissedAlertIds.has(o.id))
+  const alertCount = visibleOverdue.length + visibleDueToday.length
+
+  const goToOrder = (orderId) => {
+    setShowNotifications(false)
+    setTimeout(() => {
+      const el = document.getElementById(`order-${orderId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('ring-2', 'ring-blue-400')
+        setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 1800)
+      }
+    }, 100)
+  }
+
+  const NotificationContent = () => (
+    <>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-gray-700" />
+          <span className="font-semibold text-gray-900 text-sm">Delivery Alerts</span>
+          {alertCount > 0 && (
+            <span className="text-xs font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">
+              {alertCount}
+            </span>
+          )}
+        </div>
+        <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600 p-1">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="overflow-y-auto divide-y divide-white/60 flex-1">
+        {alertCount === 0 ? (
+          <div className="px-4 py-10 text-center">
+            <CheckCircle className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">No delivery alerts</p>
+            <p className="text-xs text-gray-400 mt-0.5">All deliveries are on track</p>
+          </div>
+        ) : (
+          <>
+            {visibleOverdue.map((order) => (
+              <AlertRow
+                key={order.id}
+                order={order}
+                priority="overdue"
+                onDismiss={() => dismissAlert(order.id)}
+                onAction={() => goToOrder(order.id)}
+              />
+            ))}
+            {visibleDueToday.map((order) => (
+              <AlertRow
+                key={order.id}
+                order={order}
+                priority="due_today"
+                onDismiss={() => dismissAlert(order.id)}
+                onAction={() => goToOrder(order.id)}
+              />
+            ))}
+          </>
+        )}
+      </div>
+
+      {alertCount > 0 && (
+        <div className="border-t border-gray-100 px-4 py-3">
+          <button
+            onClick={dismissAll}
+            className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors text-center"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+      <p className="text-center text-xs text-gray-300 pb-3 px-4">
+        Dismissed alerts return on refresh
+      </p>
+    </>
+  )
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Notification panel */}
+      {showNotifications && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 z-40 md:bg-black/20"
+            onClick={() => setShowNotifications(false)}
+          />
+
+          {/* Mobile: dropdown. Desktop: right side panel */}
+          <div className="
+            fixed z-50 bg-white shadow-2xl border border-gray-100 flex flex-col
+            top-[6rem] left-2 right-2 rounded-xl max-h-[70vh]
+            md:top-0 md:left-auto md:right-0 md:h-screen md:w-80 md:rounded-none md:rounded-l-2xl md:max-h-screen md:border-r-0
+          ">
+            <NotificationContent />
+          </div>
+        </>
+      )}
+
       {/* Sticky header */}
       <header className={`sticky top-0 z-30 transition-colors duration-300 ${newOrderAlert ? 'bg-blue-600' : 'bg-gray-900'}`}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -571,6 +753,16 @@ export default function KitchenDashboard() {
               aria-label="Refresh"
             >
               <RefreshCw className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setShowNotifications((p) => !p)}
+              className="relative p-2 text-gray-400 hover:text-white rounded-lg"
+              aria-label="Delivery alerts"
+            >
+              <Bell className="h-5 w-5" />
+              {(overdueDeliveries.length + dueTodayDeliveries.length) > 0 && (
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+              )}
             </button>
           </div>
         </div>
