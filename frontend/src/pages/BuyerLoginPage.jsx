@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChefHat } from 'lucide-react'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
@@ -79,9 +78,8 @@ export default function BuyerLoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <ChefHat className="mx-auto h-12 w-12 text-amber-600" />
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">The Bakery</h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <img src="/rad-logo.png" alt="RAD Confectionerey" className="mx-auto h-32 w-auto" />
+          <p className="mt-4 text-sm text-gray-600">
             {step === 'contact' ? 'Sign in to your account' : `Enter the code sent to ${maskedContact}`}
           </p>
         </div>
