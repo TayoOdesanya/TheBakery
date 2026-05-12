@@ -100,10 +100,13 @@ const Menu = () => {
       <header className="sticky top-0 z-50 border-b border-black/5 bg-white/90 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#ff9f32]">Freshly baked daily</p>
-              <h1 className="text-3xl font-black text-[#252525]">The Bakery</h1>
-            </div>
+            <a href="/" className="flex items-center space-x-3">
+              <img src="/rad-logo.png" alt="Rad's Confectionery" className="h-14 w-auto" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#ff9f32]">Rad's</p>
+                <h1 className="text-2xl font-black uppercase text-[#252525]">Confectionery</h1>
+              </div>
+            </a>
             
             <div className="flex items-center space-x-4">
               <a href="/admin/login" className="text-sm font-semibold text-[#333333] hover:text-[#ff9f32]">Admin</a>
@@ -129,17 +132,17 @@ const Menu = () => {
         <div
           className="absolute inset-0 opacity-20 bg-cover bg-center"
           style={{
-            backgroundImage: "url('https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=1800&auto=format&fit=crop')"
+            backgroundImage: "url('https://images.unsplash.com/photo-1481391243133-f96216dcb5d2?w=1800&auto=format&fit=crop')"
           }}
         />
         <div className="relative mx-auto grid min-h-[640px] max-w-7xl items-center gap-10 px-4 py-16 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <p className="mb-4 text-sm font-bold uppercase tracking-[0.25em] text-[#ff9f32]">The Bakery</p>
+            <p className="mb-4 text-sm font-bold uppercase tracking-[0.25em] text-[#ff9f32]">Rad's Confectionery</p>
             <h2 className="max-w-xl text-6xl font-light leading-[1.15] text-[#252525] sm:text-7xl lg:text-8xl">
-              Delicious Baked Goodness
+              Handcrafted Sweet Delights
             </h2>
             <p className="mt-8 max-w-xl text-lg leading-8 text-[#444444]">
-              Start your day the right way with fresh bread, pastries, cakes, and table-ready treats from our kitchen.
+              Indulge in beautifully crafted confections, cookies, sweets, and treats made with care in our kitchen.
             </p>
             <a href="#menu-list" className="mt-10 inline-flex bg-[#ff9f32] px-14 py-5 text-lg font-bold text-white transition-colors hover:bg-[#252525]">
               Shop Now
@@ -148,8 +151,8 @@ const Menu = () => {
 
           <div className="relative min-h-[360px]">
             <img
-              src="https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=1000&auto=format&fit=crop"
-              alt="Freshly baked bread"
+              src="https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=1000&auto=format&fit=crop"
+              alt="Handcrafted confectionery"
               className="absolute right-0 top-1/2 h-[300px] w-full -translate-y-1/2 rounded-lg object-cover shadow-2xl sm:h-[420px]"
             />
           </div>
@@ -160,10 +163,10 @@ const Menu = () => {
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-5xl font-light leading-tight text-[#252525] sm:text-6xl">
-              Indulge In The Taste
+              Sweet In Every Bite
             </h2>
             <p className="mt-8 text-base leading-7 text-[#333333]">
-              Fresh ingredients, homestyle baking, and easy ordering for every table.
+              Premium ingredients, handcrafted with love, and easy ordering for every occasion.
             </p>
           </div>
 
@@ -173,9 +176,9 @@ const Menu = () => {
                 <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#ff9f32] shadow-sm">
                   <Star className="h-7 w-7" />
                 </div>
-                <h3 className="text-2xl font-black">Fresh Ingredients</h3>
+                <h3 className="text-2xl font-black">Premium Ingredients</h3>
                 <p className="mt-5 leading-7 text-[#333333]">
-                  Quality bakes made with simple ingredients and a fresh-from-the-oven finish.
+                  Every sweet treat is crafted with quality ingredients, chosen to deliver an unforgettable finish.
                 </p>
               </div>
 
@@ -185,14 +188,14 @@ const Menu = () => {
                 </div>
                 <h3 className="text-2xl font-black">Table Orders</h3>
                 <p className="mt-5 leading-7 text-[#333333]">
-                  Browse the menu, add favourites, and send your order directly to the kitchen.
+                  Browse the menu, add to cart, and send your order directly to the kitchen.
                 </p>
               </div>
             </div>
 
             <img
-              src="https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=900&auto=format&fit=crop"
-              alt="Basket of baked bread"
+              src="https://images.unsplash.com/photo-1587393855524-087f83d95bc9?w=900&auto=format&fit=crop"
+              alt="Assorted confectionery and sweets"
               className="mx-auto aspect-[4/3] w-full max-w-xl rounded-lg object-cover shadow-xl"
             />
 
@@ -201,9 +204,9 @@ const Menu = () => {
                 <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#ff9f32] shadow-sm">
                   <Star className="h-7 w-7 fill-[#ff9f32]" />
                 </div>
-                <h3 className="text-2xl font-black">Homemade Bread</h3>
+                <h3 className="text-2xl font-black">Handcrafted Sweets</h3>
                 <p className="mt-5 leading-7 text-[#333333]">
-                  Oven-fresh breads, cookies, cakes, pastries, and sweet treats for every craving.
+                  Chocolates, fudge, candies, truffles, and confections made fresh for every craving.
                 </p>
               </div>
 
@@ -211,9 +214,9 @@ const Menu = () => {
                 <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#ff9f32] shadow-sm">
                   <Coffee className="h-7 w-7" />
                 </div>
-                <h3 className="text-2xl font-black">Healthy & Tasty</h3>
+                <h3 className="text-2xl font-black">A Treat For All</h3>
                 <p className="mt-5 leading-7 text-[#333333]">
-                  Comforting bakery favourites with a bright, fresh cafe feel.
+                  Gifts, party orders, and everyday indulgences — something special for every sweet tooth.
                 </p>
               </div>
             </div>
@@ -262,7 +265,7 @@ const Menu = () => {
             {selectedCategory === 'all' ? 'Our Menu' : selectedCategory}
           </h2>
           <p className="mt-8 text-base leading-7 text-[#333333]">
-            Browse through our delectable menu of tasty treats and baked goodies.
+            Browse through our full range of handcrafted sweets, confections, and treats.
           </p>
         </div>
 
@@ -302,7 +305,7 @@ const Menu = () => {
                                 }}
                               />
                             ) : (
-                              <div className="h-full w-full flex items-center justify-center bg-amber-50 text-5xl">🍞</div>
+                              <div className="h-full w-full flex items-center justify-center bg-amber-50 text-5xl">🍬</div>
                             )}
                           </div>
                         </Link>
