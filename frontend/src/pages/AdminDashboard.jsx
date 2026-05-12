@@ -37,6 +37,7 @@ const AdminDashboard = () => {
   const [buyers, setBuyers] = useState([])
   const [buyersLoading, setBuyersLoading] = useState(false)
   const [togglingUserId, setTogglingUserId] = useState(null)
+  const [togglingAction, setTogglingAction] = useState(null)
 
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const defaultSchedule = DAY_NAMES.map((_, i) => ({
@@ -160,15 +161,17 @@ const AdminDashboard = () => {
     }
   }
 
-  const handleToggleUser = async (user) => {
+  const handleSetUserStatus = async (user, newStatus, action) => {
     setTogglingUserId(user.id)
+    setTogglingAction(action)
     try {
-      await axios.patch(`/api/admin/users/${user.id}/status`, { isActive: !user.is_active })
-      setBuyers((prev) => prev.map((u) => u.id === user.id ? { ...u, is_active: !u.is_active } : u))
+      await axios.patch(`/api/admin/users/${user.id}/status`, { accountStatus: newStatus })
+      setBuyers((prev) => prev.map((u) => u.id === user.id ? { ...u, account_status: newStatus } : u))
     } catch {
       alert('Failed to update user status')
     } finally {
       setTogglingUserId(null)
+      setTogglingAction(null)
     }
   }
 
@@ -602,18 +605,52 @@ const AdminDashboard = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${buyer.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                        {buyer.is_active ? 'Active' : 'Deactivated'}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        buyer.account_status === 'active' ? 'bg-green-100 text-green-700'
+                        : buyer.account_status === 'paused' ? 'bg-amber-100 text-amber-700'
+                        : 'bg-red-100 text-red-600'
+                      }`}>
+                        {buyer.account_status === 'active' ? 'Active' : buyer.account_status === 'paused' ? 'Paused' : 'Deactivated'}
                       </span>
+                      {/* Pause / Resume button — not shown for deactivated users */}
+                      {buyer.account_status !== 'deactivated' && (
+                        <button
+                          onClick={() => handleSetUserStatus(
+                            buyer,
+                            buyer.account_status === 'paused' ? 'active' : 'paused',
+                            'pause'
+                          )}
+                          disabled={togglingUserId === buyer.id}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors min-w-[100px] text-center ${
+                            buyer.account_status === 'paused'
+                              ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                              : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                          }`}
+                        >
+                          {togglingUserId === buyer.id && togglingAction === 'pause'
+                            ? <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                            : buyer.account_status === 'paused' ? 'Resume Access' : 'Pause Access'
+                          }
+                        </button>
+                      )}
+                      {/* Deactivate / Reactivate icon */}
                       <button
-                        onClick={() => handleToggleUser(buyer)}
+                        onClick={() => handleSetUserStatus(
+                          buyer,
+                          buyer.account_status === 'deactivated' ? 'active' : 'deactivated',
+                          'deactivate'
+                        )}
                         disabled={togglingUserId === buyer.id}
-                        title={buyer.is_active ? 'Deactivate buyer' : 'Reactivate buyer'}
-                        className={`p-1.5 rounded transition-colors ${buyer.is_active ? 'text-gray-500 hover:text-red-600 hover:bg-red-50' : 'text-gray-500 hover:text-green-600 hover:bg-green-50'}`}
+                        title={buyer.account_status === 'deactivated' ? 'Reactivate buyer' : 'Deactivate buyer'}
+                        className={`p-1.5 rounded transition-colors ${
+                          buyer.account_status === 'deactivated'
+                            ? 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                            : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                        }`}
                       >
-                        {togglingUserId === buyer.id
-                          ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400" />
-                          : buyer.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />
+                        {togglingUserId === buyer.id && togglingAction === 'deactivate'
+                          ? <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                          : buyer.account_status === 'deactivated' ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />
                         }
                       </button>
                     </div>

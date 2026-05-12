@@ -90,21 +90,23 @@ const ItemDetail = () => {
           {/* Product view */}
           <div className="grid gap-12 lg:grid-cols-2 items-start">
             {/* Image */}
-            <div className="overflow-hidden rounded-2xl bg-white shadow-sm p-10">
-              {item.imageUrl ? (
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="w-full h-full max-h-[480px] object-contain"
-                  onError={(e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800'
-                  }}
-                />
-              ) : (
-                <div className="h-[480px] flex items-center justify-center bg-amber-50 rounded-xl text-amber-200 text-6xl">
-                  🍞
-                </div>
-              )}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+              <div className="aspect-[4/3] overflow-hidden">
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none'
+                      e.target.parentElement.classList.add('flex', 'items-center', 'justify-center', 'bg-amber-50', 'text-6xl')
+                      e.target.parentElement.textContent = '🍞'
+                    }}
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-amber-50 text-6xl">🍞</div>
+                )}
+              </div>
             </div>
 
             {/* Details */}

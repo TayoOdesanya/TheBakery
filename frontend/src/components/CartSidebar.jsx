@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 const CartSidebar = ({ onClose }) => {
   const {
     items, removeItem, updateQuantity, clearCart,
-    getSubtotal, getTotal, shippingCost,
+    getSubtotal, getTotal, shippingCost, setShippingCost,
     fulfillmentType, setFulfillmentType,
     specialInstructions, setSpecialInstructions,
   } = useCart()
@@ -97,7 +97,7 @@ const CartSidebar = ({ onClose }) => {
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setFulfillmentType(type)}
+                      onClick={() => { setFulfillmentType(type); if (type === 'collection') setShippingCost(0) }}
                       className={`py-2 text-sm font-bold border-2 rounded transition-colors capitalize ${
                         fulfillmentType === type
                           ? 'border-[#ff9f32] bg-[#ff9f32] text-white'

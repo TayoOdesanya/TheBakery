@@ -9,20 +9,55 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('authToken')
-    const storedUser = localStorage.getItem('authUser')
-    if (storedToken && storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser)
-        setToken(storedToken)
-        setUser(parsed)
-        axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
-      } catch {
-        localStorage.removeItem('authToken')
-        localStorage.removeItem('authUser')
-      }
+    const clearSession = () => {
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('authUser')
+      delete axios.defaults.headers.common['Authorization']
+      setToken(null)
+      setUser(null)
     }
-    setLoading(false)
+
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const code = error.response?.data?.code
+        const status = error.response?.status
+        if (code === 'ACCOUNT_SUSPENDED' || code === 'SESSION_EXPIRED' || status === 401) {
+          clearSession()
+        }
+        return Promise.reject(error)
+      }
+    )
+    return () => axios.interceptors.response.eject(interceptorId)
+  }, [])
+
+  useEffect(() => {
+    const init = async () => {
+      const storedToken = localStorage.getItem('authToken')
+      const storedUser = localStorage.getItem('authUser')
+      if (storedToken && storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser)
+          axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
+          await axios.get('/api/auth/verify')
+          setToken(storedToken)
+          setUser(parsed)
+        } catch (err) {
+          if (err.response?.status === 401 || err.response?.status === 403) {
+            localStorage.removeItem('authToken')
+            localStorage.removeItem('authUser')
+            delete axios.defaults.headers.common['Authorization']
+          } else {
+            // Network/server error — keep the session, don't log out
+            const parsed = JSON.parse(storedUser)
+            setToken(storedToken)
+            setUser(parsed)
+          }
+        }
+      }
+      setLoading(false)
+    }
+    init()
   }, [])
 
   const login = (tokenValue, userData) => {

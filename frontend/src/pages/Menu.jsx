@@ -290,18 +290,21 @@ const Menu = () => {
                     {categoryItems.map((item) => (
                       <div key={item.id} className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col">
                         <Link to={`/menu/${item.id}`} className="block">
-                          {item.imageUrl && (
-                            <div className="aspect-[4/3] overflow-hidden bg-white p-8">
+                          <div className="aspect-[4/3] overflow-hidden bg-white">
+                            {item.imageUrl ? (
                               <img
                                 src={item.imageUrl}
                                 alt={item.name}
-                                className="h-full w-full object-contain"
+                                className="h-full w-full object-cover"
                                 onError={(e) => {
-                                  e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'
+                                  e.target.style.display = 'none'
+                                  e.target.parentElement.classList.add('flex', 'items-center', 'justify-center', 'bg-amber-50')
                                 }}
                               />
-                            </div>
-                          )}
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center bg-amber-50 text-5xl">🍞</div>
+                            )}
+                          </div>
                         </Link>
 
                         <div className="p-6 flex flex-col flex-1">

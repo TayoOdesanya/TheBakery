@@ -56,6 +56,7 @@ async function initDb() {
     )
   `);
   await query(`alter table bakery_orders add column if not exists collection_date date`);
+  await query(`alter table bakery_users add column if not exists account_status varchar(20) not null default 'active'`);
 }
 
 initDb().catch((e) => console.error('[initDb]', e.message));
@@ -70,15 +71,21 @@ async function requireAuth(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const result = await query('select is_active from bakery_users where id = $1', [decoded.userId]);
+    const result = await query('select account_status from bakery_users where id = $1', [decoded.userId]);
     const user = result.rows[0];
-    if (!user || !user.is_active) {
-      return res.status(403).json({ error: 'Account deactivated. Please contact the bakery.' });
+    if (!user || user.account_status !== 'active') {
+      const msg = user?.account_status === 'paused'
+        ? 'Your account has been temporarily paused. Please contact the bakery.'
+        : 'Account deactivated. Please contact the bakery.';
+      return res.status(403).json({ error: msg, code: 'ACCOUNT_SUSPENDED' });
     }
     req.user = decoded;
     next();
-  } catch {
-    res.status(403).json({ error: 'Invalid or expired token' });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Session expired. Please log in again.', code: 'SESSION_EXPIRED' });
+    }
+    res.status(401).json({ error: 'Invalid token' });
   }
 }
 
@@ -235,6 +242,20 @@ async function createPendingOrder(client, payload) {
     if (!resolvedAddress?.line1 || !resolvedAddress?.city || !resolvedAddress?.postcode) {
       throw new Error('Full delivery address is required');
     }
+  }
+
+  if (fulfillmentType === 'collection' && collectionDate) {
+    const dateObj = new Date(collectionDate + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (dateObj < today) throw new Error('Collection date must be in the future');
+
+    const dayOfWeek = dateObj.getDay();
+    const [scheduleRes, blockedRes] = await Promise.all([
+      client.query('select 1 from bakery_collection_schedule where day_of_week = $1 and is_active = true', [dayOfWeek]),
+      client.query('select 1 from bakery_blocked_dates where blocked_date = $1', [collectionDate]),
+    ]);
+    if (scheduleRes.rows.length === 0) throw new Error('Collection is not available on that day');
+    if (blockedRes.rows.length > 0) throw new Error('That collection date is not available');
   }
 
   const { serviceFee, subtotalAmount, totalAmount: itemsTotal } = await calculateOrderItems(client, items);
@@ -397,6 +418,10 @@ async function completePendingOrder(orderId, payload) {
   }
 }
 
+app.get('/api/auth/verify', requireAuth, (req, res) => {
+  res.json({ valid: true });
+});
+
 app.get('/health', async (req, res, next) => {
   try {
     await query('select 1');
@@ -426,8 +451,8 @@ app.post('/api/auth/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    if (!user.is_active) {
-      return res.status(403).json({ error: 'Account is inactive. Please contact the bakery.' });
+    if (user.account_status !== 'active') {
+      return res.status(403).json({ error: 'Account is inactive. Please contact the bakery.', code: 'ACCOUNT_SUSPENDED' });
     }
 
     const token = jwt.sign(
@@ -1037,7 +1062,8 @@ app.post('/api/auth/buyer-login', async (req, res, next) => {
     const user = result.rows[0];
 
     if (!user) return res.status(404).json({ error: 'No account found. Please check your details or contact the bakery.' });
-    if (!user.is_active) return res.status(403).json({ error: 'Your account has been deactivated. Please contact the bakery.' });
+    if (user.account_status === 'paused') return res.status(403).json({ error: 'Your account has been temporarily paused. Please contact the bakery.', code: 'ACCOUNT_SUSPENDED' });
+    if (user.account_status === 'deactivated') return res.status(403).json({ error: 'Your account has been deactivated. Please contact the bakery.', code: 'ACCOUNT_SUSPENDED' });
 
     await query('update bakery_otp_codes set used_at = now() where user_id = $1 and used_at is null', [user.id]);
 
@@ -1116,7 +1142,7 @@ app.put('/api/admin/shipping-rates/:tier', requireAuth, requireAdmin, async (req
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const result = await query(`
-      select id, username, email, phone, role, buyer_id, is_active, email_verified, created_at
+      select id, username, email, phone, role, buyer_id, is_active, account_status, email_verified, created_at
       from bakery_users
       order by created_at desc
     `);
@@ -1128,12 +1154,15 @@ app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res, next) =>
 
 app.patch('/api/admin/users/:id/status', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const { isActive } = req.body;
-    if (typeof isActive !== 'boolean') return res.status(400).json({ error: 'isActive must be a boolean' });
+    const { accountStatus } = req.body;
+    if (!['active', 'paused', 'deactivated'].includes(accountStatus)) {
+      return res.status(400).json({ error: 'accountStatus must be active, paused, or deactivated' });
+    }
 
     const result = await query(`
-      update bakery_users set is_active = $1 where id = $2 and role != 'admin' returning id, username, is_active
-    `, [isActive, Number(req.params.id)]);
+      update bakery_users set account_status = $1 where id = $2 and role != 'admin'
+      returning id, email, phone, buyer_id, account_status
+    `, [accountStatus, Number(req.params.id)]);
 
     if (!result.rows[0]) return res.status(404).json({ error: 'User not found' });
     res.json({ user: result.rows[0] });
