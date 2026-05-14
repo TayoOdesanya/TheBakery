@@ -151,7 +151,7 @@ const Menu = () => {
               Handcrafted Sweet Delights
             </h2>
             <p className="mt-6 max-w-xl text-base leading-7 text-[#444444] md:mt-8 md:text-lg md:leading-8">
-              Indulge in beautifully handcrafted confections, cookies, sweets, and treats made with care in our kitchen.
+              Indulge in beautifully crafted confections, cookies, sweets, and treats made with care in our kitchen.
             </p>
             <a href="#menu-list" className="mt-8 inline-flex bg-[#ff9f32] px-8 py-4 text-base font-bold text-white transition-colors hover:bg-[#252525] md:mt-10 md:px-14 md:py-5 md:text-lg">
               Shop Now

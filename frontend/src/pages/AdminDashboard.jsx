@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
-import { Plus, Edit2, Trash2, Package, LogOut, TrendingUp, Mail, Copy, UserX, UserCheck, Link, ChefHat, Calendar, X } from 'lucide-react'
+import { Plus, Edit2, Trash2, Package, LogOut, TrendingUp, Mail, Copy, UserX, UserCheck, Link, ChefHat, Calendar, X, Eye, EyeOff, Search, Tag } from 'lucide-react'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
@@ -21,6 +21,20 @@ const AdminDashboard = () => {
     weightGrams: '',
     ingredients: '',
     allergens: ''
+  })
+
+  // Menu tab UI state
+  const [adminMenuSearch, setAdminMenuSearch] = useState('')
+  const [menuCategoryFilter, setMenuCategoryFilter] = useState('all')
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
+  const [newCategoryInput, setNewCategoryInput] = useState('')
+  const [categories, setCategories] = useState(() => {
+    try {
+      const stored = localStorage.getItem('bakery_categories')
+      return stored ? JSON.parse(stored) : ['Baked Goods', 'Cooking Ingredients']
+    } catch {
+      return ['Baked Goods', 'Cooking Ingredients']
+    }
   })
 
   const [invites, setInvites] = useState([])
@@ -56,7 +70,16 @@ const AdminDashboard = () => {
   const navigate = useNavigate()
   const { token, logout } = useAuth()
 
-  const CATEGORIES = ['Baked Goods', 'Cooking Ingredients']
+  // Merge any categories found on loaded items into the managed list
+  useEffect(() => {
+    if (menuItems.length === 0) return
+    const itemCats = [...new Set(menuItems.map(i => i.category).filter(Boolean))]
+    setCategories(prev => {
+      const merged = [...new Set([...prev, ...itemCats])].sort()
+      localStorage.setItem('bakery_categories', JSON.stringify(merged))
+      return merged
+    })
+  }, [menuItems])
 
   useEffect(() => {
     if (!token) return
@@ -321,11 +344,60 @@ const AdminDashboard = () => {
     }
   }
 
+  const handleToggleVisibility = async (item) => {
+    try {
+      await axios.put(`/api/admin/menu-items/${item.id}`, {
+        name: item.name,
+        description: item.description || null,
+        price: item.price,
+        imageUrl: item.imageUrl || null,
+        category: item.category || null,
+        isAvailable: !item.isAvailable,
+        quantityAvailable: item.inventory?.quantityAvailable,
+        weightGrams: item.weightGrams || null,
+        ingredients: item.ingredients || null,
+        allergens: item.allergens || null,
+      })
+      setMenuItems(prev => prev.map(i => i.id === item.id ? { ...i, isAvailable: !i.isAvailable } : i))
+    } catch {
+      alert('Failed to update item visibility')
+    }
+  }
+
+  const handleAddCategory = () => {
+    const trimmed = newCategoryInput.trim()
+    if (!trimmed || categories.includes(trimmed)) return
+    const updated = [...categories, trimmed].sort()
+    setCategories(updated)
+    localStorage.setItem('bakery_categories', JSON.stringify(updated))
+    setNewCategoryInput('')
+  }
+
+  const handleRemoveCategory = (cat) => {
+    const count = menuItems.filter(i => i.category === cat).length
+    if (count > 0) {
+      alert(`"${cat}" is assigned to ${count} item${count !== 1 ? 's' : ''}. Please reassign those items first.`)
+      return
+    }
+    const updated = categories.filter(c => c !== cat)
+    setCategories(updated)
+    localStorage.setItem('bakery_categories', JSON.stringify(updated))
+  }
+
   const resetForm = () => {
     setFormData({ name: '', description: '', price: '', category: '', imageUrl: '', stock: '0', weightGrams: '', ingredients: '', allergens: '' })
     setEditingItem(null)
     setShowAddForm(false)
   }
+
+  // Derived menu tab data
+  const itemCategories = [...new Set(menuItems.map(i => i.category).filter(Boolean))].sort()
+  const filteredMenuItems = menuItems
+    .filter(item => menuCategoryFilter === 'all' || item.category === menuCategoryFilter)
+    .filter(item => {
+      const q = adminMenuSearch.trim().toLowerCase()
+      return !q || item.name.toLowerCase().includes(q) || item.description?.toLowerCase().includes(q)
+    })
 
   if (loading) {
     return (
@@ -414,54 +486,186 @@ const AdminDashboard = () => {
         {/* Menu Tab */}
         {activeTab === 'menu' && (
           <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
-            <div className="flex justify-between items-center mb-6">
+            {/* Header row */}
+            <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-[#252525] md:text-xl">Menu Items</h2>
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="flex items-center gap-2 bg-[#ff9f32] px-4 py-2 text-sm font-bold text-white hover:bg-[#252525] transition-colors rounded"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Item</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowCategoryManager(!showCategoryManager)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded border transition-colors ${
+                    showCategoryManager
+                      ? 'border-[#ff9f32] text-[#ff9f32] bg-amber-50'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Categories</span>
+                </button>
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center gap-2 bg-[#ff9f32] px-4 py-2 text-sm font-bold text-white hover:bg-[#252525] transition-colors rounded"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Item</span>
+                </button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {menuItems.map((item) => (
-                <div key={item.id} className="border border-gray-100 rounded-xl overflow-hidden flex flex-col">
-                  {item.imageUrl && (
-                    <img src={item.imageUrl} alt={item.name} className="w-full h-24 object-cover md:h-32" />
+
+            {/* Category manager panel */}
+            {showCategoryManager && (
+              <div className="mb-4 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-3">Manage Categories</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {categories.map(cat => (
+                    <span
+                      key={cat}
+                      className="flex items-center gap-1.5 bg-white border border-amber-200 text-amber-800 text-xs font-medium px-2.5 py-1 rounded-full"
+                    >
+                      {cat}
+                      <button
+                        onClick={() => handleRemoveCategory(cat)}
+                        className="text-amber-400 hover:text-red-500 transition-colors"
+                        title="Remove category"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {categories.length === 0 && (
+                    <p className="text-xs text-amber-600">No categories yet.</p>
                   )}
-                  <div className="p-3 md:p-4 flex flex-col flex-1">
-                    <h3 className="font-bold text-sm text-[#252525] mb-1 md:text-lg">{item.name}</h3>
-                    {item.category && (
-                      <span className="inline-block mb-2 px-2 py-0.5 text-xs font-medium bg-amber-50 text-[#ff9f32] rounded">
-                        {item.category}
-                      </span>
-                    )}
-                    <p className="text-gray-500 text-xs mb-2 hidden md:block line-clamp-2">{item.description}</p>
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-bold text-[#ff9f32] md:text-lg">£{parseFloat(item.price).toFixed(2)}</span>
-                      <span className="text-xs text-gray-400">Stock: {item.inventory?.quantityAvailable || 0}</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newCategoryInput}
+                    onChange={(e) => setNewCategoryInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                    placeholder="New category name"
+                    className="flex-1 text-sm border border-amber-200 rounded px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#ff9f32]"
+                  />
+                  <button
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryInput.trim()}
+                    className="flex items-center gap-1 bg-[#ff9f32] text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-[#252525] transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Search bar */}
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={adminMenuSearch}
+                onChange={(e) => setAdminMenuSearch(e.target.value)}
+                placeholder="Search menu items..."
+                className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff9f32] focus:border-transparent"
+              />
+              {adminMenuSearch && (
+                <button
+                  onClick={() => setAdminMenuSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Category filter tabs */}
+            {itemCategories.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 mb-5 -mx-1 px-1">
+                {['all', ...itemCategories].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setMenuCategoryFilter(cat)}
+                    className={`shrink-0 px-3 py-1.5 text-xs font-semibold rounded-full transition-colors whitespace-nowrap ${
+                      menuCategoryFilter === cat
+                        ? 'bg-[#ff9f32] text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {cat === 'all'
+                      ? `All (${menuItems.length})`
+                      : `${cat} (${menuItems.filter(i => i.category === cat).length})`
+                    }
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Items grid */}
+            {filteredMenuItems.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-8">
+                {adminMenuSearch || menuCategoryFilter !== 'all'
+                  ? 'No items match your filters.'
+                  : 'No menu items yet.'}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {filteredMenuItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`border border-gray-100 rounded-xl overflow-hidden flex flex-col transition-opacity ${!item.isAvailable ? 'opacity-60' : ''}`}
+                  >
+                    <div className="relative">
+                      {item.imageUrl && (
+                        <img src={item.imageUrl} alt={item.name} className="w-full h-24 object-cover md:h-32" />
+                      )}
+                      {!item.isAvailable && (
+                        <div className="absolute top-2 left-2">
+                          <span className="bg-gray-700 text-white text-[10px] font-bold px-2 py-0.5 rounded">Hidden</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex gap-2 mt-auto">
-                      <button
-                        onClick={() => handleEdit(item)}
-                        className="flex-1 flex items-center justify-center gap-1 border border-gray-200 rounded px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="flex-1 flex items-center justify-center gap-1 border border-red-100 rounded px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span>Delete</span>
-                      </button>
+                    <div className="p-3 md:p-4 flex flex-col flex-1">
+                      <h3 className="font-bold text-sm text-[#252525] mb-1 md:text-lg">{item.name}</h3>
+                      {item.category && (
+                        <span className="inline-block mb-2 px-2 py-0.5 text-xs font-medium bg-amber-50 text-[#ff9f32] rounded">
+                          {item.category}
+                        </span>
+                      )}
+                      <p className="text-gray-500 text-xs mb-2 hidden md:block line-clamp-2">{item.description}</p>
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-sm font-bold text-[#ff9f32] md:text-lg">£{parseFloat(item.price).toFixed(2)}</span>
+                        <span className="text-xs text-gray-400">Stock: {item.inventory?.quantityAvailable || 0}</span>
+                      </div>
+                      <div className="flex gap-2 mt-auto">
+                        <button
+                          onClick={() => handleToggleVisibility(item)}
+                          title={item.isAvailable ? 'Hide from menu' : 'Show on menu'}
+                          className={`flex items-center justify-center px-2 py-1.5 rounded border text-xs font-medium transition-colors ${
+                            item.isAvailable
+                              ? 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                              : 'border-amber-200 text-amber-600 bg-amber-50 hover:bg-amber-100'
+                          }`}
+                        >
+                          {item.isAvailable ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => handleEdit(item)}
+                          className="flex-1 flex items-center justify-center gap-1 border border-gray-200 rounded px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="flex-1 flex items-center justify-center gap-1 border border-red-100 rounded px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -888,10 +1092,16 @@ const AdminDashboard = () => {
                     required
                   >
                     <option value="">Select a category</option>
-                    {CATEGORIES.map((cat) => (
+                    {categories.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
+                    {formData.category && !categories.includes(formData.category) && (
+                      <option value={formData.category}>{formData.category}</option>
+                    )}
                   </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Manage categories from the Menu tab → Categories button.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
