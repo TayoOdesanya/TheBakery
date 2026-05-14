@@ -58,10 +58,13 @@ const ItemDetail = () => {
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-black/5 bg-white/90 backdrop-blur">
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#ff9f32]">Freshly baked daily</p>
-              <h1 className="text-3xl font-black text-[#252525]">The Bakery</h1>
-            </div>
+            <a href="/" className="flex items-center space-x-2 md:space-x-3">
+              <img src="/rad-logo.png" alt="R's Confectionery" className="h-10 w-auto md:h-14" />
+              <div>
+                <p className="text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-[#ff9f32]">R's</p>
+                <h1 className="text-lg md:text-2xl font-black uppercase text-[#252525]">Confectionery</h1>
+              </div>
+            </a>
             <button
               onClick={() => setShowCart(true)}
               className="flex items-center space-x-2 bg-[#ff9f32] px-4 py-2 font-bold text-white shadow-sm transition-colors hover:bg-[#252525]"
@@ -77,18 +80,18 @@ const ItemDetail = () => {
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto px-4 py-10">
+        <div className="max-w-7xl mx-auto px-4 py-6 md:py-10">
           {/* Back link */}
           <Link
             to="/menu"
-            className="inline-flex items-center gap-2 text-sm font-bold text-[#333] hover:text-[#ff9f32] mb-8"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[#333] hover:text-[#ff9f32] mb-6 md:mb-8"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to menu
           </Link>
 
           {/* Product view */}
-          <div className="grid gap-12 lg:grid-cols-2 items-start">
+          <div className="grid gap-8 lg:gap-12 lg:grid-cols-2 items-start">
             {/* Image */}
             <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
               <div className="aspect-[4/3] overflow-hidden">
@@ -100,23 +103,23 @@ const ItemDetail = () => {
                     onError={(e) => {
                       e.target.style.display = 'none'
                       e.target.parentElement.classList.add('flex', 'items-center', 'justify-center', 'bg-amber-50', 'text-6xl')
-                      e.target.parentElement.textContent = '🍞'
+                      e.target.parentElement.textContent = '🍬'
                     }}
                   />
                 ) : (
-                  <div className="h-full w-full flex items-center justify-center bg-amber-50 text-6xl">🍞</div>
+                  <div className="h-full w-full flex items-center justify-center bg-amber-50 text-6xl">🍬</div>
                 )}
               </div>
             </div>
 
             {/* Details */}
-            <div className="space-y-6">
+            <div className="space-y-5 md:space-y-6">
               <div>
                 <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff9f32]">
                   {item.category}
                 </span>
-                <h2 className="mt-2 text-4xl font-black text-[#252525] leading-tight">{item.name}</h2>
-                <p className="mt-3 text-3xl font-bold text-[#ff9f32]">£{item.price.toFixed(2)}</p>
+                <h2 className="mt-2 text-3xl font-black text-[#252525] leading-tight md:text-4xl">{item.name}</h2>
+                <p className="mt-3 text-2xl font-bold text-[#ff9f32] md:text-3xl">£{item.price.toFixed(2)}</p>
               </div>
 
               {item.description && (
@@ -188,7 +191,7 @@ const ItemDetail = () => {
 
           {/* Related items */}
           {related.length > 0 && (
-            <section className="mt-20">
+            <section className="mt-12 md:mt-20">
               <h2 className="mb-6 border-b-2 border-[#ff9f32] pb-2 text-2xl font-black text-[#252525]">
                 More from {item.category}
               </h2>

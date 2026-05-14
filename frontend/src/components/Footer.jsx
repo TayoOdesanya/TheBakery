@@ -1,19 +1,21 @@
 import { Link } from 'react-router-dom'
-import { ChefHat } from 'lucide-react'
 
 export default function Footer() {
   return (
     <footer className="bg-[#252525] text-gray-400 mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-12">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3">
           {/* Brand */}
-          <div>
-            <div className="flex items-center gap-2 text-white mb-3">
-              <ChefHat className="h-6 w-6" />
-              <span className="font-bold text-lg">The Bakery</span>
-            </div>
+          <div className="sm:col-span-2 md:col-span-1">
+            <a href="/" className="flex items-center gap-3 mb-3">
+              <img src="/rad-logo.png" alt="R's Confectionery" className="h-12 w-auto" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#ff9f32]">R's</p>
+                <span className="font-black uppercase text-white text-lg">Confectionery</span>
+              </div>
+            </a>
             <p className="text-sm leading-relaxed">
-              Freshly baked goods made with care and delivered to your door.
+              Handcrafted sweets and confections made with care, for every occasion.
             </p>
           </div>
 
@@ -42,8 +44,8 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-white/10 mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs">
-          <p>&copy; {new Date().getFullYear()} The Bakery. All rights reserved.</p>
+        <div className="border-t border-white/10 mt-8 pt-6 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs md:mt-10">
+          <p>&copy; {new Date().getFullYear()} R's Confectionery. All rights reserved.</p>
           <p>Registered in England &amp; Wales</p>
         </div>
       </div>
