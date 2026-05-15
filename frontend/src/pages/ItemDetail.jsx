@@ -60,9 +60,9 @@ const ItemDetail = () => {
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <a href="/" className="flex items-center space-x-2 md:space-x-3">
               <img src="/rad-logo.png" alt="R's Confectionery" className="h-10 w-auto md:h-14" />
-              <div>
-                <p className="text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-[#ff9f32]">R's</p>
-                <h1 className="text-lg md:text-2xl font-black uppercase text-[#252525]">Confectionery</h1>
+              <div className="hidden md:block">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#ff9f32]">R's</p>
+                <h1 className="text-2xl font-black uppercase text-[#252525]">Confectionery</h1>
               </div>
             </a>
             <button
@@ -195,33 +195,56 @@ const ItemDetail = () => {
               <h2 className="mb-6 border-b-2 border-[#ff9f32] pb-2 text-2xl font-black text-[#252525]">
                 More from {item.category}
               </h2>
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                {related.map((rel) => (
-                  <Link
+              <div className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-3">
+                {related.slice(0, 6).map((rel, index) => (
+                  <div
                     key={rel.id}
-                    to={`/menu/${rel.id}`}
-                    className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col"
+                    className={`overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col${index >= 4 ? ' hidden md:flex' : ''}`}
                   >
-                    {rel.imageUrl && (
-                      <div className="aspect-[4/3] overflow-hidden bg-white p-6">
-                        <img
-                          src={rel.imageUrl}
-                          alt={rel.name}
-                          className="h-full w-full object-contain"
-                          onError={(e) => {
-                            e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'
-                          }}
-                        />
+                    <Link to={`/menu/${rel.id}`} className="block">
+                      <div className="aspect-[4/3] overflow-hidden bg-white">
+                        {rel.imageUrl ? (
+                          <img
+                            src={rel.imageUrl}
+                            alt={rel.name}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                              e.target.parentElement.classList.add('flex', 'items-center', 'justify-center', 'bg-amber-50')
+                            }}
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-amber-50 text-3xl md:text-5xl">🍬</div>
+                        )}
                       </div>
-                    )}
-                    <div className="p-4 flex flex-col flex-1">
-                      <h3 className="text-lg font-bold text-[#111827]">{rel.name}</h3>
-                      <p className="mt-1 font-bold text-[#ff9f32]">£{rel.price.toFixed(2)}</p>
-                      {rel.isSoldOut && (
-                        <span className="mt-2 text-xs font-bold text-gray-400">Sold Out</span>
-                      )}
+                    </Link>
+
+                    <div className="p-3 md:p-6 flex flex-col flex-1">
+                      <div className="mb-2 md:mb-3">
+                        <Link to={`/menu/${rel.id}`}>
+                          <h3 className="text-sm font-semibold text-[#111827] hover:text-[#ff9f32] transition-colors md:text-2xl md:font-medium">{rel.name}</h3>
+                        </Link>
+                      </div>
+
+                      <div className="mt-auto">
+                        <div className="text-sm font-bold text-[#ff9f32] mb-2 md:text-lg md:mb-3">
+                          £{rel.price.toFixed(2)}
+                        </div>
+                        <div className="flex items-center border-t border-gray-100 pt-2 md:pt-3">
+                          {rel.isSoldOut ? (
+                            <span className="w-full text-center py-1.5 text-xs font-bold text-gray-400 bg-gray-100 rounded md:py-2 md:text-sm">Sold Out</span>
+                          ) : (
+                            <button
+                              onClick={() => { addItem(rel, 1); setShowCart(true) }}
+                              className="w-full bg-[#ff9f32] px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#252525] md:px-4 md:py-2 md:text-sm"
+                            >
+                              Add to Cart
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             </section>

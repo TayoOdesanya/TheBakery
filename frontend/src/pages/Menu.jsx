@@ -14,6 +14,7 @@ const Menu = () => {
   const [error, setError] = useState(null)
   const [showCart, setShowCart] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [expandedCategories, setExpandedCategories] = useState({})
   const { addItem, getItemCount } = useCart()
 
   const filteredItems = searchQuery.trim()
@@ -203,7 +204,7 @@ const Menu = () => {
             </div>
 
             <img
-              src="https://images.unsplash.com/photo-1587393855524-087f83d95bc9?w=900&auto=format&fit=crop"
+              src="https://www.foodnavigator-asia.com/resizer/v2/DPSEAJK7CZPK7BRWBLJWME6E4Q.jpg?auth=ea329059421bac7aac6808dd77dc78564aaea23378efe19f11f75b11515c48c8"
               alt="Assorted confectionery and sweets"
               className="mx-auto aspect-[4/3] w-full max-w-xl rounded-lg object-cover shadow-xl"
             />
@@ -304,6 +305,8 @@ const Menu = () => {
           <div className="space-y-12">
             {groupedCategoryNames.map((categoryName) => {
               const categoryItems = groupedMenuItems[categoryName]
+              const isExpanded = expandedCategories[categoryName]
+              const MOBILE_LIMIT = 4
 
               return (
                 <div key={categoryName}>
@@ -311,8 +314,8 @@ const Menu = () => {
                     {categoryName}
                   </h2>
                   <div className="grid grid-cols-2 gap-3 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {categoryItems.map((item) => (
-                      <div key={item.id} className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col">
+                    {categoryItems.map((item, index) => (
+                      <div key={item.id} className={`overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col${index >= MOBILE_LIMIT && !isExpanded ? ' hidden md:flex' : ''}`}>
                         <Link to={`/menu/${item.id}`} className="block">
                           <div className="aspect-[4/3] overflow-hidden bg-white">
                             {item.imageUrl ? (
@@ -332,38 +335,48 @@ const Menu = () => {
                         </Link>
 
                         <div className="p-3 md:p-6 flex flex-col flex-1">
-                          <div className="mb-2 md:mb-4">
+                          <div className="mb-2 md:mb-3">
                             <Link to={`/menu/${item.id}`}>
                               <h3 className="text-sm font-semibold text-[#111827] hover:text-[#ff9f32] transition-colors md:text-2xl md:font-medium">{item.name}</h3>
                             </Link>
-                            <span className="hidden md:inline-block mt-3 px-2 py-1 text-xs font-medium text-[#ff9f32]">
+                            <span className="hidden md:inline-block mt-2 px-2 py-1 text-xs font-medium text-[#ff9f32]">
                               {item.category}
                             </span>
-                            <div className="mt-1 text-sm font-bold text-[#ff9f32] md:mt-2 md:text-lg">
-                              £{parseFloat(item.price).toFixed(2)}
-                            </div>
                           </div>
 
                           {item.description && (
-                            <p className="hidden md:block mb-4 text-sm leading-6 text-gray-600">{item.description}</p>
+                            <p className="hidden md:block mb-3 text-sm leading-6 text-gray-600">{item.description}</p>
                           )}
 
-                          <div className="flex items-center gap-3 border-t border-gray-100 pt-2 mt-auto md:pt-4">
-                            {item.isSoldOut ? (
-                              <span className="w-full text-center py-1.5 text-xs font-bold text-gray-400 bg-gray-100 rounded md:py-2 md:text-sm">Sold Out</span>
-                            ) : (
-                              <button
-                                onClick={() => handleAddToCart(item)}
-                                className="w-full bg-[#ff9f32] px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#252525] md:px-4 md:py-2 md:text-sm"
-                              >
-                                Add to Cart
-                              </button>
-                            )}
+                          <div className="mt-auto">
+                            <div className="text-sm font-bold text-[#ff9f32] mb-2 md:text-lg md:mb-3">
+                              £{parseFloat(item.price).toFixed(2)}
+                            </div>
+                            <div className="flex items-center border-t border-gray-100 pt-2 md:pt-3">
+                              {item.isSoldOut ? (
+                                <span className="w-full text-center py-1.5 text-xs font-bold text-gray-400 bg-gray-100 rounded md:py-2 md:text-sm">Sold Out</span>
+                              ) : (
+                                <button
+                                  onClick={() => handleAddToCart(item)}
+                                  className="w-full bg-[#ff9f32] px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#252525] md:px-4 md:py-2 md:text-sm"
+                                >
+                                  Add to Cart
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
+                  {categoryItems.length > MOBILE_LIMIT && !isExpanded && (
+                    <button
+                      className="md:hidden mt-4 w-full py-2.5 text-sm font-bold text-[#ff9f32] border-2 border-[#ff9f32] rounded-xl hover:bg-[#ff9f32] hover:text-white transition-colors"
+                      onClick={() => setExpandedCategories(prev => ({ ...prev, [categoryName]: true }))}
+                    >
+                      See all {categoryItems.length} items
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -374,50 +387,55 @@ const Menu = () => {
             {filteredItems.map((item) => (
               <div key={item.id} className="overflow-hidden rounded-2xl bg-white text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col">
                 <Link to={`/menu/${item.id}`} className="block">
-                  {item.imageUrl && (
-                    <div className="aspect-[4/3] overflow-hidden bg-white md:p-8">
+                  <div className="aspect-[4/3] overflow-hidden bg-white">
+                    {item.imageUrl ? (
                       <img
                         src={item.imageUrl}
                         alt={item.name}
-                        className="h-full w-full object-cover md:object-contain"
+                        className="h-full w-full object-cover"
                         onError={(e) => {
-                          e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'
+                          e.target.style.display = 'none'
+                          e.target.parentElement.classList.add('flex', 'items-center', 'justify-center', 'bg-amber-50')
                         }}
                       />
-                    </div>
-                  )}
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-amber-50 text-3xl md:text-5xl">🍬</div>
+                    )}
+                  </div>
                 </Link>
 
                 <div className="p-3 md:p-6 flex flex-col flex-1">
-                  <div className="mb-2 md:mb-4">
+                  <div className="mb-2 md:mb-3">
                     <Link to={`/menu/${item.id}`}>
                       <h3 className="text-sm font-semibold text-[#111827] hover:text-[#ff9f32] transition-colors md:text-2xl md:font-medium">{item.name}</h3>
                     </Link>
                     {item.category && (
-                      <span className="hidden md:inline-block mt-3 px-2 py-1 text-xs font-medium text-[#ff9f32]">
+                      <span className="hidden md:inline-block mt-2 px-2 py-1 text-xs font-medium text-[#ff9f32]">
                         {item.category}
                       </span>
                     )}
-                    <div className="mt-1 text-sm font-bold text-[#ff9f32] md:mt-2 md:text-lg">
-                      £{parseFloat(item.price).toFixed(2)}
-                    </div>
                   </div>
 
                   {item.description && (
-                    <p className="hidden md:block mb-4 text-sm leading-6 text-gray-600">{item.description}</p>
+                    <p className="hidden md:block mb-3 text-sm leading-6 text-gray-600">{item.description}</p>
                   )}
 
-                  <div className="flex items-center gap-3 border-t border-gray-100 pt-2 mt-auto md:pt-4">
-                    {item.isSoldOut ? (
-                      <span className="w-full text-center py-1.5 text-xs font-bold text-gray-400 bg-gray-100 rounded md:py-2 md:text-sm">Sold Out</span>
-                    ) : (
-                      <button
-                        onClick={() => handleAddToCart(item)}
-                        className="w-full bg-[#ff9f32] px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#252525] md:px-4 md:py-2 md:text-sm"
-                      >
-                        Add to Cart
-                      </button>
-                    )}
+                  <div className="mt-auto">
+                    <div className="text-sm font-bold text-[#ff9f32] mb-2 md:text-lg md:mb-3">
+                      £{parseFloat(item.price).toFixed(2)}
+                    </div>
+                    <div className="flex items-center border-t border-gray-100 pt-2 md:pt-3">
+                      {item.isSoldOut ? (
+                        <span className="w-full text-center py-1.5 text-xs font-bold text-gray-400 bg-gray-100 rounded md:py-2 md:text-sm">Sold Out</span>
+                      ) : (
+                        <button
+                          onClick={() => handleAddToCart(item)}
+                          className="w-full bg-[#ff9f32] px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#252525] md:px-4 md:py-2 md:text-sm"
+                        >
+                          Add to Cart
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

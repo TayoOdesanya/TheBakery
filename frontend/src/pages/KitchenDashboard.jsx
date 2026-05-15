@@ -907,14 +907,34 @@ export default function KitchenDashboard() {
             </div>
           ) : history.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-gray-500">No completed orders yet</p>
+              <CheckCircle className="h-12 w-12 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No completed orders yet</p>
+              <button
+                onClick={fetchHistory}
+                className="mt-4 text-xs text-gray-400 hover:text-gray-600 transition-colors underline"
+              >
+                Reload history
+              </button>
             </div>
           ) : (
-            <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
-              {history.map((order) => (
-                <HistoryCard key={order.id} order={order} />
-              ))}
-            </div>
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                  {history.length} completed order{history.length !== 1 ? 's' : ''}
+                </p>
+                <button
+                  onClick={() => setHistory([])}
+                  className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  Clear history
+                </button>
+              </div>
+              <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
+                {history.map((order) => (
+                  <HistoryCard key={order.id} order={order} />
+                ))}
+              </div>
+            </>
           )
         )}
       </main>
