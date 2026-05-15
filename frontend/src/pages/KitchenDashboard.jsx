@@ -61,7 +61,7 @@ function PrintLabelView({ order, onClose }) {
           <div className="flex gap-2">
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-700"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#252525] text-white rounded-lg hover:bg-[#ff9f32] transition-colors"
             >
               <Printer className="h-4 w-4" />
               Print
@@ -122,7 +122,7 @@ function DispatchModal({ order, onConfirm, onClose }) {
               value={trackingNumber}
               onChange={(e) => { setTrackingNumber(e.target.value); setError('') }}
               placeholder="e.g. JD000000000000000000"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9f32] focus:border-transparent"
             />
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
           </div>
@@ -133,7 +133,7 @@ function DispatchModal({ order, onConfirm, onClose }) {
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
+              className="flex-1 py-2 text-sm bg-[#252525] text-white rounded-lg hover:bg-[#ff9f32] transition-colors disabled:opacity-50"
             >
               {submitting ? 'Posting…' : 'Confirm Posted'}
             </button>
@@ -174,7 +174,7 @@ function NotesField({ orderId, initial, onSaved }) {
         onChange={handleChange}
         placeholder="Add notes or tracking info…"
         rows={2}
-        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 bg-gray-50"
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#ff9f32] focus:border-transparent bg-gray-50"
       />
       {saving && <span className="absolute bottom-2 right-2 text-xs text-gray-400">Saving…</span>}
     </div>
@@ -192,9 +192,9 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
   const borderColor = priority === 'overdue'
     ? 'border-l-red-500'
     : order.status === 'ready' ? 'border-l-green-500'
-    : order.status === 'preparing' ? 'border-l-yellow-500'
+    : order.status === 'preparing' ? 'border-l-[#ff9f32]'
     : priority === 'due_today' ? 'border-l-orange-500'
-    : 'border-l-blue-500'
+    : 'border-l-blue-400'
 
   return (
     <>
@@ -215,7 +215,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
         >
           <div className="flex items-center gap-2 min-w-0">
             {isDelivery
-              ? <Truck className="h-4 w-4 text-blue-600 shrink-0" />
+              ? <Truck className="h-4 w-4 text-blue-500 shrink-0" />
               : <Package className="h-4 w-4 text-green-600 shrink-0" />}
             <span className="font-bold text-gray-900 truncate">{order.customerName}</span>
             <span className="text-xs text-gray-400 shrink-0">#{order.orderNumber}</span>
@@ -246,7 +246,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
 
         {expanded && (
           <div className="px-4 pb-4 space-y-3 border-t border-gray-50">
-            {/* Shipping / fulfillment type badges */}
+            {/* Badges */}
             <div className="flex flex-wrap gap-2 pt-3">
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                 isDelivery ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
@@ -260,7 +260,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
               )}
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                 order.status === 'paid' ? 'bg-blue-50 text-blue-700'
-                : order.status === 'preparing' ? 'bg-yellow-50 text-yellow-700'
+                : order.status === 'preparing' ? 'bg-amber-50 text-amber-700'
                 : order.status === 'ready' ? 'bg-green-50 text-green-700'
                 : 'bg-gray-100 text-gray-500'
               }`}>
@@ -285,7 +285,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
               </div>
             )}
 
-            {/* Delivery address block */}
+            {/* Delivery address */}
             {isDelivery && order.deliveryAddress && (
               <div className="bg-gray-50 rounded-lg p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -307,14 +307,14 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
               </div>
             )}
 
-            {/* Tracking number (once dispatched) */}
+            {/* Tracking number */}
             {order.trackingNumber && (
               <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
                 <span className="font-medium text-gray-700">Tracking:</span> {order.trackingNumber}
               </div>
             )}
 
-            {/* Kitchen notes — auto-saving */}
+            {/* Kitchen notes */}
             <NotesField
               orderId={order.id}
               initial={order.kitchenNotes}
@@ -326,7 +326,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
               {order.status === 'paid' && (
                 <button
                   onClick={() => onStatusUpdate(order.id, 'preparing')}
-                  className="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex-1 py-2.5 bg-[#ff9f32] hover:bg-[#252525] text-white text-sm font-bold rounded-lg transition-colors"
                 >
                   Start Preparing
                 </button>
@@ -334,7 +334,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
               {order.status === 'preparing' && isDelivery && (
                 <button
                   onClick={() => setShowDispatchModal(true)}
-                  className="flex-1 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex-1 py-2.5 bg-[#252525] hover:bg-[#ff9f32] text-white text-sm font-bold rounded-lg transition-colors"
                 >
                   Mark as Posted
                 </button>
@@ -342,7 +342,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
               {order.status === 'preparing' && !isDelivery && (
                 <button
                   onClick={() => onStatusUpdate(order.id, 'ready')}
-                  className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg transition-colors"
                 >
                   Mark Ready
                 </button>
@@ -350,7 +350,7 @@ function OrderCard({ order, onStatusUpdate, onDispatch, onNotesChange }) {
               {order.status === 'ready' && !isDelivery && (
                 <button
                   onClick={() => onStatusUpdate(order.id, 'delivered')}
-                  className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-800 text-white text-sm font-bold rounded-lg transition-colors"
                 >
                   Mark Collected
                 </button>
@@ -442,12 +442,9 @@ function AlertRow({ order, priority, onDismiss, onAction }) {
 
   return (
     <div className="relative overflow-hidden">
-      {/* Dismiss layer behind the row */}
       <div className="absolute inset-y-0 right-0 flex items-center justify-end px-5 bg-red-500 min-w-full">
         <span className="text-white text-xs font-bold uppercase tracking-wide">Dismiss</span>
       </div>
-
-      {/* Swipeable row */}
       <div
         style={{
           transform: `translateX(${swipeX}px)`,
@@ -458,7 +455,6 @@ function AlertRow({ order, priority, onDismiss, onAction }) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Tap area — goes to order */}
         <button
           className="flex-1 flex items-start gap-2 px-4 py-3 text-left min-w-0"
           onClick={onAction}
@@ -478,8 +474,6 @@ function AlertRow({ order, priority, onDismiss, onAction }) {
             </p>
           </div>
         </button>
-
-        {/* X dismiss button */}
         <button
           onClick={onDismiss}
           className={`shrink-0 p-3 self-stretch flex items-center ${isOverdue ? 'text-red-300 hover:text-red-600' : 'text-orange-300 hover:text-orange-600'} transition-colors`}
@@ -524,7 +518,7 @@ export default function KitchenDashboard() {
         osc.stop(ctx.currentTime + offset + 0.25)
       })
     } catch {
-      // audio blocked by browser — visual alert is sufficient
+      // audio blocked by browser
     }
   }, [])
 
@@ -621,8 +615,8 @@ export default function KitchenDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900" />
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f7f2]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#ff9f32]" />
       </div>
     )
   }
@@ -640,8 +634,8 @@ export default function KitchenDashboard() {
       const el = document.getElementById(`order-${orderId}`)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        el.classList.add('ring-2', 'ring-blue-400')
-        setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 1800)
+        el.classList.add('ring-2', 'ring-[#ff9f32]')
+        setTimeout(() => el.classList.remove('ring-2', 'ring-[#ff9f32]'), 1800)
       }
     }, 100)
   }
@@ -711,17 +705,14 @@ export default function KitchenDashboard() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7f2]">
       {/* Notification panel */}
       {showNotifications && (
         <>
-          {/* Overlay */}
           <div
             className="fixed inset-0 z-40 md:bg-black/20"
             onClick={() => setShowNotifications(false)}
           />
-
-          {/* Mobile: dropdown. Desktop: right side panel */}
           <div className="
             fixed z-50 bg-white shadow-2xl border border-gray-100 flex flex-col
             top-[6rem] left-2 right-2 rounded-xl max-h-[70vh]
@@ -733,13 +724,18 @@ export default function KitchenDashboard() {
       )}
 
       {/* Sticky header */}
-      <header className={`sticky top-0 z-30 transition-colors duration-300 ${newOrderAlert ? 'bg-blue-600' : 'bg-gray-900'}`}>
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-white leading-tight">
-              {newOrderAlert ? '🔔 New Order!' : 'Kitchen'}
-            </h1>
-            <p className="text-xs text-gray-400">{orders.length} active</p>
+      <header className={`sticky top-0 z-30 transition-colors duration-300 ${newOrderAlert ? 'bg-[#ff9f32]' : 'bg-[#252525]'}`}>
+        <div className="max-w-2xl md:max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <a href="/" className="shrink-0">
+              <img src="/rad-logo.png" alt="R's Confectionery" className="h-8 w-auto" />
+            </a>
+            <div>
+              <p className="text-sm font-bold text-white leading-tight">
+                {newOrderAlert ? '🔔 New Order!' : 'Kitchen'}
+              </p>
+              <p className="text-xs text-gray-400">{orders.length} active</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -767,28 +763,46 @@ export default function KitchenDashboard() {
             </button>
           </div>
         </div>
-        <div className="max-w-2xl mx-auto px-4 flex border-t border-white/10">
-          {[
-            { id: 'delivery', label: `Delivery${deliveryOrders.length > 0 ? ` (${deliveryOrders.length})` : ''}` },
-            { id: 'collection', label: `Collection${collectionOrders.length > 0 ? ` (${collectionOrders.length})` : ''}` },
-            { id: 'history', label: 'History' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'text-white border-b-2 border-white'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+
+        {/* Tab bar */}
+        <div className="max-w-2xl md:max-w-6xl mx-auto px-4 flex border-t border-white/10">
+          {/* Delivery — labelled "Delivery / Collection" on desktop since both columns are always visible */}
+          <button
+            onClick={() => setActiveTab('delivery')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'delivery' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <span className="md:hidden">
+              Delivery{deliveryOrders.length > 0 ? ` (${deliveryOrders.length})` : ''}
+            </span>
+            <span className="hidden md:inline">
+              Delivery / Collection{orders.length > 0 ? ` (${orders.length})` : ''}
+            </span>
+          </button>
+
+          {/* Collection — mobile only; desktop always shows both columns */}
+          <button
+            onClick={() => setActiveTab('collection')}
+            className={`md:hidden px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'collection' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            Collection{collectionOrders.length > 0 ? ` (${collectionOrders.length})` : ''}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            History
+          </button>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-4 pb-20">
+      <main className="max-w-2xl md:max-w-6xl mx-auto px-4 py-4 pb-20">
         {error && (
           <div className="bg-red-100 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 flex justify-between">
             <span>{error}</span>
@@ -796,83 +810,107 @@ export default function KitchenDashboard() {
           </div>
         )}
 
-        {activeTab === 'delivery' && (
-          deliveryOrders.length === 0 ? (
-            <div className="text-center py-20">
-              <CheckCircle className="h-14 w-14 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No active postal orders</p>
-              <p className="text-sm text-gray-400">Delivery orders will appear here</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <PrioritySection
-                label="Overdue"
-                labelColor="text-red-500"
-                orders={overdueDeliveries}
-                onStatusUpdate={handleStatusUpdate}
-                onDispatch={handleDispatch}
-                onNotesChange={handleNotesChange}
-              />
-              <PrioritySection
-                label="Due Today"
-                labelColor="text-orange-500"
-                orders={dueTodayDeliveries}
-                onStatusUpdate={handleStatusUpdate}
-                onDispatch={handleDispatch}
-                onNotesChange={handleNotesChange}
-              />
-              <PrioritySection
-                label="Upcoming"
-                labelColor="text-blue-400"
-                orders={upcomingDeliveries}
-                onStatusUpdate={handleStatusUpdate}
-                onDispatch={handleDispatch}
-                onNotesChange={handleNotesChange}
-              />
-            </div>
-          )
-        )}
-
-        {activeTab === 'collection' && (
-          collectionOrders.length === 0 ? (
-            <div className="text-center py-20">
-              <CheckCircle className="h-14 w-14 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No collection orders</p>
-              <p className="text-sm text-gray-400">Collection orders will appear here</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {collectionOrders.map((order) => (
-                <div key={order.id}>
-                  {order.collectionDate && (
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                      <Package className="h-3 w-3" />
-                      Collection: {new Date(order.collectionDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    </p>
-                  )}
-                  <OrderCard
-                    order={order}
+        {/* Delivery + Collection: tabbed on mobile, side-by-side on desktop */}
+        {activeTab !== 'history' && (
+          <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start">
+            {/* Delivery column */}
+            <div className={activeTab === 'collection' ? 'hidden md:block' : ''}>
+              {/* Desktop column header */}
+              <div className="hidden md:flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 pb-2 border-b border-gray-200">
+                <Truck className="h-3.5 w-3.5" />
+                Delivery
+                {deliveryOrders.length > 0 && (
+                  <span className="ml-auto font-bold text-[#ff9f32]">{deliveryOrders.length}</span>
+                )}
+              </div>
+              {deliveryOrders.length === 0 ? (
+                <div className="text-center py-16 md:py-20">
+                  <CheckCircle className="h-12 w-12 text-gray-200 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">No active postal orders</p>
+                  <p className="text-sm text-gray-400">Delivery orders will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <PrioritySection
+                    label="Overdue"
+                    labelColor="text-red-500"
+                    orders={overdueDeliveries}
+                    onStatusUpdate={handleStatusUpdate}
+                    onDispatch={handleDispatch}
+                    onNotesChange={handleNotesChange}
+                  />
+                  <PrioritySection
+                    label="Due Today"
+                    labelColor="text-orange-500"
+                    orders={dueTodayDeliveries}
+                    onStatusUpdate={handleStatusUpdate}
+                    onDispatch={handleDispatch}
+                    onNotesChange={handleNotesChange}
+                  />
+                  <PrioritySection
+                    label="Upcoming"
+                    labelColor="text-blue-400"
+                    orders={upcomingDeliveries}
                     onStatusUpdate={handleStatusUpdate}
                     onDispatch={handleDispatch}
                     onNotesChange={handleNotesChange}
                   />
                 </div>
-              ))}
+              )}
             </div>
-          )
+
+            {/* Collection column */}
+            <div className={activeTab === 'delivery' ? 'hidden md:block' : ''}>
+              {/* Desktop column header */}
+              <div className="hidden md:flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 pb-2 border-b border-gray-200">
+                <Package className="h-3.5 w-3.5" />
+                Collection
+                {collectionOrders.length > 0 && (
+                  <span className="ml-auto font-bold text-[#ff9f32]">{collectionOrders.length}</span>
+                )}
+              </div>
+              {collectionOrders.length === 0 ? (
+                <div className="text-center py-16 md:py-20">
+                  <CheckCircle className="h-12 w-12 text-gray-200 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">No collection orders</p>
+                  <p className="text-sm text-gray-400">Collection orders will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {collectionOrders.map((order) => (
+                    <div key={order.id}>
+                      {order.collectionDate && (
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                          <Package className="h-3 w-3" />
+                          Collection: {new Date(order.collectionDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </p>
+                      )}
+                      <OrderCard
+                        order={order}
+                        onStatusUpdate={handleStatusUpdate}
+                        onDispatch={handleDispatch}
+                        onNotesChange={handleNotesChange}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
+        {/* History tab */}
         {activeTab === 'history' && (
           historyLoading ? (
             <div className="flex justify-center py-16">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff9f32]" />
             </div>
           ) : history.length === 0 ? (
             <div className="text-center py-20">
               <p className="text-gray-500">No completed orders yet</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
               {history.map((order) => (
                 <HistoryCard key={order.id} order={order} />
               ))}
